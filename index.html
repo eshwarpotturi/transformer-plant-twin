@@ -133,6 +133,15 @@ button,select{font:inherit;color:inherit}
 .pins button{position:absolute;top:0;width:12px;height:12px;border-radius:50%;border:2px solid var(--card);transform:translateX(-6px);cursor:pointer;padding:0}
 .speed{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--card);cursor:pointer;flex:none}
 
+.autos{right:max(16px,env(safe-area-inset-right,0px));bottom:78px;width:min(390px,calc(100% - 32px));display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none}
+.autos.up{bottom:330px}
+.auto{pointer-events:auto;cursor:pointer;background:var(--card);border-radius:10px;box-shadow:var(--shadow);padding:10px 12px;border-left:5px solid var(--ok);animation:pop .35s ease-out}
+.auto.blocked{border-left-color:var(--risk)} .auto.read{border-left-color:var(--agent)}
+.auto .h2{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+.auto.blocked .h2{color:var(--risk)} .auto.read .h2{color:var(--agent)}
+.auto .tx{margin-top:3px;line-height:1.45}
+.auto .rl{margin-top:5px;font-size:12px;color:var(--muted)}
+@keyframes pop{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
 .toast{right:max(16px,env(safe-area-inset-right,0px));bottom:78px;width:min(390px,calc(100% - 32px));background:#1F2329;color:#F3F4F6;border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.35);padding:14px 16px;border-top:3px solid var(--agent)}
 .toast .a{display:flex;align-items:center;gap:8px;font-size:12px;color:#C7CBD1}
 .toast .a i{width:16px;height:16px;border-radius:4px;background:var(--agent);display:inline-block}
@@ -203,6 +212,7 @@ button,select{font:inherit;color:inherit}
     <div class="drawer" id="drawer" hidden></div>
   </aside>
   <section class="ov card" id="card" hidden></section>
+  <div class="ov autos" id="autos" aria-live="polite"></div>
   <section class="ov toast" id="toast" hidden role="alertdialog" aria-labelledby="toastT">
     <div class="a"><i></i>Plant Twin · AI agent<em id="toastN"></em></div>
     <h4 id="toastT"></h4><div id="toastB"></div>
@@ -227,7 +237,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 /* ================= Synthetic plant data (hours from Mon 9 Nov 2026 00:00) ================= */
 const H_END=408, T0=new Date(2026,10,9,0,0);
 const EV_SHIFTLOG=54, EV_SUPPLIER=57+10/60, EV_CUSTOMER=57+40/60;
-const AG_READ=57.25, AG_CHASE=57.33, AG_BLOCK=57.37;
+const AG_READ=57.25, AG_CHASE=57.27, AG_BLOCK=57.37;
 const WM4_BREAK=86, WM4_FIXED=134, OIL_OUT=282, OIL_EMERGENCY=354, OIL_ORDER_AT=106, OIL_ARRIVE_AGENT=226;
 
 /* Four decisions the agent brings to a person, in order */
@@ -304,13 +314,16 @@ const MSGS=[
 ];
 /* What the agent does on its own (no approval) */
 const AUTO=[
- {at:AG_READ,k:'read',text:'Read 3 unread messages and linked them to T-07, T-09 and winding machine 4.'},
- {at:AG_READ+.02,k:'read',text:'Noted T-09\'s customer can accept delivery 4 days later. Kept as a backup.'},
- {at:AG_CHASE,k:'auto',text:'Asked ABC Insulators to fast-track customs with the cleared documents. Bushings now due 16 Nov.'},
- {at:AG_BLOCK,k:'blocked',text:'Considered skipping T-07\'s heat-run test to gain a day. Blocked: this test is mandatory.'},
- {at:101,k:'read',text:'Read the weekly stock report. Oil will run short before T-15 is filled.'},
- {at:150,k:'auto',text:'Moved T-14 ahead of T-18 in assembly bay 3 so the drying ovens stay full.'},
- {at:222,k:'auto',text:'Booked crane 3 and the transfer car for T-07\'s move to the test lab.'},
+ {at:AG_READ,k:'read',text:'Read 3 unread messages and linked them to T-07, T-09 and winding machine 4.',rule:'Reading and linking information needs no approval.'},
+ {at:AG_READ+.01,k:'read',text:'Noted T-09\'s customer can accept delivery 4 days later. Kept as a backup.',rule:'Reading and linking information needs no approval.'},
+ {at:AG_CHASE,k:'auto',text:'Asked ABC Insulators to fast-track customs with the cleared documents. Bushings now due 16 Nov.',rule:'Supplier follow-ups: allowed without approval.',go:'stores'},
+ {at:AG_BLOCK,k:'blocked',text:'Considered skipping T-07\'s heat-run test to gain a day. Blocked: this test is mandatory.',rule:'Skipping or shortening a test: never allowed.',go:'lab'},
+ {at:101,k:'read',text:'Read the weekly stock report. Oil will run short before T-15 is filled.',rule:'Reading and linking information needs no approval.',go:'oil'},
+ {at:120,k:'auto',text:'Moved two winders from machine 6 to machine 2 for the next small order. No overtime.',rule:'Moving crews between stations: allowed without approval.',go:'clean'},
+ {at:150,k:'auto',text:'Moved T-14 ahead of T-18 in assembly bay 3 so the drying ovens stay full.',rule:'Re-ordering a queue that changes no ship date: allowed without approval.',go:'hall'},
+ {at:190,k:'auto',text:'Reordered 12 nitrogen cylinders for dispatch (₹0.8 L).',rule:'Purchases under ₹2 L: allowed without approval.',go:'dispatch'},
+ {at:222,k:'auto',text:'Booked crane 3 and the transfer car for T-07\'s move to the test lab.',rule:'Booking cranes and transport inside the plant: allowed without approval.',go:'drying'},
+ {at:300,k:'auto',text:'Held the test lab on 22 Nov for T-14\'s customer witness test and told the test team.',rule:'Internal scheduling: allowed without approval.',go:'lab'},
 ];
 
 /* Site positions (metres; x east, z south) */
@@ -793,7 +806,8 @@ function storyData(t){
   if(t>=WM4_BREAK&&t<WM4_FIXED&&DS.wm4!=='approve')return{eb,cls:'risk',h:'Machine 4 broke down.',p:'You kept it running on 11 Nov. T-11 loses 2 days.',nums:''};
   const done=Object.keys(DS).length;
   const s=summary();
-  return{eb,tag:`${done} of 4 decisions`,cls:s.pen07<100?'ok':'warn',h:DS.t07==='approve'?`T-07 back on track. Ships ${s.t07}.`:`T-07 ships ${s.t07}.`,p:'The agent keeps working in the background. Open the Agent tab to see everything it did.',
+  const auto=AUTO.filter(a=>t>=a.at&&a.k==='auto').length,blk=AUTO.filter(a=>t>=a.at&&a.k==='blocked').length;
+  return{eb,tag:`${auto} done alone · ${done} asked you · ${blk} blocked`,cls:s.pen07<100?'ok':'warn',h:DS.t07==='approve'?`T-07 back on track. Ships ${s.t07}.`:`T-07 ships ${s.t07}.`,p:'The agent keeps working in the background. Open the Agent tab to see everything it did.',
     nums:`<div class="nums"><div><b>${money(s.pen07)}</b><small>T-07 penalty, was ₹1 Cr</small></div><div><b>${UNITS.filter(x=>!isShipped(x,t)&&locate(actualSegs(x),t).phase!=='before').length}</b><small>orders still in the plant</small></div></div>`};
 }
 let lastStory='';
@@ -855,7 +869,7 @@ function renderChrome(t){
   const unread=MSGS.filter(x=>t>=x.at).length,read=agentOn()&&t>=AG_READ;$('inboxBadge').hidden=!unread||read;$('inboxBadge').textContent=unread;
   const risk=UNITS.filter(u=>{const s=status(u,t);return s.cls==='risk'||s.stuck}).length;$('riskBadge').hidden=!risk;$('riskBadge').textContent=risk;
   $('agentTab').hidden=!agentOn();const n=AUTO.filter(a=>t>=a.at).length+DEC.filter(d=>t>=d.at).length;$('agentBadge').hidden=!n;$('agentBadge').textContent=n;
-  const p=pending(t);$('toast').hidden=!p;
+  const p=pending(t);$('toast').hidden=!p;$('autos').classList.toggle('up',!!p);
   if(p&&lastToast!==p.id+JSON.stringify(DS)){lastToast=p.id+JSON.stringify(DS);$('toastN').textContent=`Decision ${DEC.indexOf(p)+1} of 4`;$('toastT').textContent=p.title;$('toastB').innerHTML=p.body();$('approve').textContent=p.yes;$('reject').textContent=p.no}
 }
 let lastPanels=0;
@@ -899,6 +913,11 @@ renderer.domElement.addEventListener('pointermove',e=>{setPtr(e);renderer.domEle
 function resize(){const w=host.clientWidth||innerWidth,h=host.clientHeight||innerHeight;renderer.setSize(w,h);labelR.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()}
 new ResizeObserver(resize).observe(host);resize();
 
+/* Agent actions taken on its own appear as short notifications, each citing the rule that allowed it */
+let lastAutoT=0;
+function showAuto(a){const H={auto:'✓ Done by the agent · no approval needed',read:'✓ Read by the agent',blocked:'⛔ Blocked by policy'};
+  const e=el('auto '+a.k,`<div class="h2">${H[a.k]}</div><div class="tx"></div><div class="rl"></div>`);e.querySelector('.tx').textContent=a.text;e.querySelector('.rl').textContent='Rule: '+a.rule;
+  if(a.go)e.onclick=()=>flyTo(a.go);const box=$('autos');box.prepend(e);while(box.children.length>3)box.lastChild.remove();setTimeout(()=>e.remove(),7000)}
 const clock=new THREE.Clock();
 function frame(){
   const dt=Math.min(clock.getDelta(),.1);
@@ -910,6 +929,8 @@ function frame(){
     if(T>=H_END){T=H_END;playing=false;syncPlay()}
     scrub.value=T;
   }
+  if(agentOn()&&T>lastAutoT&&T-lastAutoT<3)for(const a of AUTO)if(a.at>lastAutoT&&a.at<=T)showAuto(a);
+  lastAutoT=T;
   if(fly){fly.k=Math.min(1,fly.k+dt/1.1);const e=ease(fly.k);camera.position.lerpVectors(fly.p0,fly.p1,e);controls.target.lerpVectors(fly.t0,fly.t1,e);if(fly.k>=1)fly=null}
   if(camGoal){controls.target.lerp(camGoal,.08);if(controls.target.distanceTo(camGoal)<.2)camGoal=null}
   controls.update();labelHost.classList.toggle('far',camera.position.distanceTo(controls.target)>150);
@@ -927,8 +948,8 @@ const TOUR=[
   go(){setMode('base');playing=false;syncPlay();setT(EV_CUSTOMER+.2);sel={unit:'T-07'};drawer='inbox';flyTo('overview')}},
  {t:'Two weeks later, the cost of not acting',p:'T-07 will ship 4 days late with a ₹1 crore penalty. Winding machine 4 broke down and cost T-11 two days. Oil ran out and T-15 is stuck. Every one of these was visible earlier.',
   go(){setMode('base');playing=false;syncPlay();setT(300);sel={info:'oil'};drawer=null;flyTo('overview')}},
- {t:'Same plant, same days, with the AI agent',p:'Now the agent reads every message as it lands. It links them to the right orders and quietly handles the small things, like chasing the supplier to fast-track customs.',
-  go(){setMode('agent');playing=false;syncPlay();setT(AG_READ+.03);sel={unit:'T-07'};drawer='agent';flyTo('stores')}},
+ {t:'Same plant, same days, with the AI agent',p:'Watch the cards in the bottom-right. The agent reads every message as it lands, links it to the right order, and handles small things itself, like chasing the supplier to fast-track customs. Each card names the rule that allowed it. Nobody had to approve these.',
+  go(){setMode('agent');setT(AG_READ-.02);lastAutoT=T;sel={unit:'T-07'};drawer='agent';flyTo('stores');playing=true;syncPlay()}},
  {t:'It refuses unsafe shortcuts',p:'To win back a day, skipping T-07\'s heat-run test looked tempting. The policy blocks it: tests are never skipped. Speed never overrides quality.',
   go(){if(!agentOn())setMode('agent');playing=false;syncPlay();setT(AG_BLOCK+.01);sel=null;drawer='agent';flyTo('lab')}},
  {t:'Your turn: four decisions',p:'The agent only acts on costly things with a person\'s OK. Answer each notification in the bottom-right corner. The plant plays on between decisions.',wait:true,
