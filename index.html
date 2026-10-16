@@ -168,7 +168,7 @@ button,select{font:inherit;color:inherit}
 .tour button.next{background:var(--brand);border-color:var(--brand);color:#fff}
 .tour button:disabled{opacity:.45;cursor:not-allowed}
 .touring .story{display:none}
-.far .fl,.far .chip.small,.far .bl.minor{display:none}
+.far .fl,.far .bl.minor{display:none}
 @media (max-width:760px){.story{top:auto;bottom:150px}.card{bottom:150px}.rail{top:118px}.brand span{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -272,6 +272,26 @@ const UNITS=[
  {id:'T-19',cust:'Lake City Discom',mva:50,kv:66,planned:790,pen:6,segs:[['winding','WM-6',160,408]]},
  {id:'T-20',cust:'Highland Hydro',mva:160,kv:220,planned:800,pen:12,segs:[['core','CL-2',152,248],['winding','WM-4',250,408]]},
 ];
+/* Small distribution-transformer orders fill free stations so the plant is never idle. They are
+   scheduled automatically into gaps left by the large orders (all schedule variants), with a staging area
+   in the transfer bay when the next station is still busy, and their own routine test bay. */
+(function smallOrders(){
+  const OCC={};const add=(r,a,b)=>(OCC[r]=OCC[r]||[]).push([a,b]);
+  const VAR={'T-07':[T07_LATE,T07_CHASED,T07_PLAN],'T-11':[T11_GOOD,T11_BAD],'T-15':[T15_GOOD,T15_BAD]};
+  for(const u of UNITS)for(const v of(VAR[u.id]||[u.segs]))v.forEach((g,i)=>add(g[1],g[2],v[i+1]?Math.max(g[3],v[i+1][2]):g[3]));
+  const free=(r,a,d)=>!(OCC[r]||[]).some(([x,y])=>a<y&&a+d>x);
+  const first=(pool,ready,d)=>{for(let t=ready;t<900;t+=.5)for(const r of pool)if(free(r,t,d))return[r,t]};
+  const ST=[['winding',['WM-2','WM-6','WM-3','WM-1','WM-5'],14],['assembly',['AS-1','AS-3','AS-2'],10],['drying',['OV-3','OV-2','OV-1'],20],['tanking',['TK-2','TK-1'],10],['test',['TB-2'],8],['yard',['Y4','Y6','Y2','Y1','Y3','Y5'],8]];
+  const CUST=['Metro Discom','Riverside Industrial Park','Airport Authority','Green Data Centre','Sugar Mill Co-op','City Hospital Campus','Textile Cluster','Hill Railway'];
+  let n=21;
+  for(let start=2;start<=300;start+=40){
+    const segs=[];let ready=start;
+    for(const[k,pool,d]of ST){const[r,a]=first(pool,ready,d);
+      if(segs.length&&a>ready+.5){const[b]=first(['B1','B2','B3','B4'],ready,a-ready)||[];if(b){segs.push(['hold',b,ready,a]);add(b,ready,a)}else segs.at(-1)[3]=a}
+      segs.push([k,r==='TB-2'?'TB-2':r,a,a+d]);add(r,a,a+d);ready=a+d}
+    UNITS.push({id:`D-${n}`,cust:CUST[(n-21)%CUST.length],mva:25,kv:33,planned:ready+30,pen:2,small:true,segs});n++;
+  }
+})();
 const MSGS=[
  {id:'m1',at:EV_SHIFTLOG,from:'Night shift log',subj:'Machine noise',about:'T-11',body:'WM-4 grinding noise during tension change, ran at reduced speed after 2am, maint informed verbally, no ticket raised.'},
  {id:'m2',at:EV_SUPPLIER,from:'Anil · ABC Insulators',subj:'Bushings delayed',about:'T-07',body:'Regret to inform the 420kV bushings for PO 4500-1182 are held at Chennai port customs. Revised ETA 18th instead of 13th. May improve by 1–2 days if documents are cleared today.'},
@@ -297,7 +317,8 @@ const RES={
  'AS-1':{x:4,z:0,y:.3,k:'asm'},'AS-2':{x:15,z:0,y:.3,k:'asm'},'AS-3':{x:26,z:0,y:.3,k:'asm'},
  'OV-1':{x:31,z:17.5,k:'oven'},'OV-2':{x:23,z:17.5,k:'oven'},'OV-3':{x:15,z:17.5,k:'oven'},
  'H1':{x:6,z:19.5,k:'hold'},'H2':{x:-1,z:21.5,k:'hold'},'TK-1':{x:-5,z:15.5,y:.4,k:'tank'},'TK-2':{x:-16,z:15.5,y:.4,k:'tank'},
- 'Q1':{x:-14,z:31,k:'queue'},'Q2':{x:-20,z:31,k:'queue'},'TB-1':{x:-36,z:49,y:.1,k:'test'},
+ 'Q1':{x:-14,z:31,k:'queue'},'Q2':{x:-20,z:31,k:'queue'},'TB-1':{x:-36,z:49,y:.1,k:'test'},'TB-2':{x:-38,z:19,y:.1,k:'test2'},
+ 'B1':{x:40,z:-18,k:'buf'},'B2':{x:40,z:-6,k:'buf'},'B3':{x:40,z:6,k:'buf'},'B4':{x:40,z:18,k:'buf'},
  'Y1':{x:2,z:42,y:1.1,k:'yard'},'Y2':{x:14,z:42,y:1.1,k:'yard'},'Y3':{x:26,z:42,y:1.1,k:'yard'},
  'Y4':{x:2,z:54,y:1.1,k:'yard'},'Y5':{x:14,z:54,y:1.1,k:'yard'},'Y6':{x:26,z:54,y:1.1,k:'yard'},
 };
@@ -310,6 +331,8 @@ function via(f,t){const a=RES[f].k,b=RES[t].k,F=RES[f],T=RES[t];
  if(a==='tank'&&b==='queue')return[[F.x,10],[-30,10],[-30,24],[-30,30],[T.x,30]];
  if(a==='queue'&&b==='test')return[[F.x,33],[-30,33],[-30,37],[T.x,42]];
  if(a==='test'&&b==='yard')return[[-30,42],[-30,37],[-30,30],[T.x,30]];
+ if(a==='test2'&&b==='yard')return[[-30,19],[-30,24],[-30,30],[T.x,30]];
+ if(b==='test2')return[[F.x,10],[-38,10]];
  return[];}
 const VIEWS={
  overview:{n:'Whole site',p:[-6,150,140],t:[-6,0,8]},
@@ -360,7 +383,7 @@ const wm4Broken=t=>(!agentOn()||DS.wm4!=='approve')&&t>=WM4_BREAK&&t<WM4_FIXED;
 const wm4Slow=t=>t>=50&&t<WM4_BREAK&&!(agentOn()&&decided('wm4',t)==='approve');
 function oilStock(t){
   let s=420;
-  for(const u of UNITS){const g=actualSegs(u).find(x=>x[0]==='tanking');if(!g)continue;const[, ,a,b]=g;if(t>=b)s-=60;else if(t>a)s-=60*(t-a)/(b-a)}
+  for(const u of UNITS){const g=actualSegs(u).find(x=>x[0]==='tanking');if(!g)continue;const[, ,a,b]=g,q=u.small?6:60;if(t>=b)s-=q;else if(t>a)s-=q*(t-a)/(b-a)}
   const arrive=agentOn()&&DS.oil==='approve'?OIL_ARRIVE_AGENT:OIL_EMERGENCY;if(t>=arrive)s+=150;
   return Math.max(0,s);
 }
@@ -385,7 +408,7 @@ function status(u,t){
   if(isShipped(u,t))return{key:'shipped',label:'Shipped',cls:'idle'};
   const k=loc.seg[0],ld=lateDays(u,t);
   const recovered=u.id==='T-07'&&agentOn()&&decided('t07',t)==='approve';
-  let label=STAGE[k];if(u.id==='T-11'&&wm4Broken(t))label='Machine broken';if(u.id==='T-15'&&k==='hold')label='Waiting for oil';
+  let label=STAGE[k];if(u.small&&k==='hold')return{key:k,label:'Queued',late:0,cls:'ok'};if(u.id==='T-11'&&wm4Broken(t))label='Machine broken';if(u.id==='T-15'&&k==='hold')label='Waiting for oil';
   const stuck=(u.id==='T-11'&&wm4Broken(t))||(u.id==='T-15'&&k==='hold');
   return{key:k,label,late:ld,cls:ld?(recovered?'warn':'risk'):(k==='hold'||stuck?'warn':'ok'),recovered,stuck};
 }
@@ -414,6 +437,8 @@ const INFO={
   f:[['Test bays','1 shielded bay'],['Impulse generator','2,400 kV'],['Routine test, large unit','1.5–2 days'],['Booked next 7 days','see below'],['Safety','Interlocked cage, red beacon when live']],
   live:t=>{const cur=UNITS.find(u=>{const s=actualSegs(u).find(x=>x[1]==='TB-1');return s&&t>=s[2]&&t<s[3]});let busy=0;for(const u of UNITS)for(const s of actualSegs(u))if(s[1]==='TB-1')busy+=Math.max(0,Math.min(s[3],t+168)-Math.max(s[2],t));
    return[[cur?`Testing ${cur.id} now${cur.fat?' · customer watching':''}`:'Free right now',cur?'':'ok'],[`Booked ${Math.round(busy/168*100)}% of the next 7 days`,busy/168>.8?'warn':'']]}},
+ testbay2:{n:'Routine test bay',d:'Smaller distribution transformers are tested here so they do not queue behind large units for the main high-voltage lab.',f:[['Rating','Up to 40 MVA, 66 kV'],['Test per unit','~8 hours'],['Tests','Ratio, resistance, losses, applied voltage']],live:t=>busyLines(['TB-2'],t)},
+ staging:{n:'Staging area',d:'Marked bays in the transfer lane where a unit waits for the next free station instead of blocking the one it just left.',f:[['Bays','4']],live:t=>busyLines(['B1','B2','B3','B4'],t)},
  impulse:{n:'Impulse generator',d:'Simulates a lightning strike on the transformer to prove its insulation. The stacked stages charge in parallel and fire in series.',f:[['Rating','2,400 kV, 240 kJ'],['Stages','12'],['Test per unit','~6 hours']],live:()=>[]},
  dispatch:{n:'Dispatch yard',d:'Tested units are drained of oil, filled with dry nitrogen and loaded on heavy-haul trailers or rail wagons. Radiators and bushings travel separately.',
   f:[['Trailer slots','6'],['Trailer','12-axle hydraulic, 300 t'],['Rail siding','1 track, well-wagon'],['Prep for shipping','1–2 days']],
@@ -534,9 +559,12 @@ box(6,3,4,C.machine,23,1.5,29);cyl(1.2,4,C.tank,28,2,29);cyl(.4,7,C.steel,19,3.5
 // tanking
 fLabel('4 · Tank & oil',-10.5,23.4,'tanking');zone('tanking',-10.5,2,16,18,4,8);
 for(const id of['TK-1','TK-2']){const r=RES[id];box(7,.4,6,C.steel,r.x,.2,r.z,scene,false)}
-box(5,2.2,3,C.machine,-27,1.1,20.5);cyl(.9,3,C.tank,-29.5,1.5,17.5);box(30,.25,.25,'#94A3B8',-14,2.6,22.8);
+box(5,2.2,3,C.machine,-27,1.1,20.5);cyl(.9,3,C.tank,-29.5,1.5,17.5);const oilPipeM=new THREE.MeshStandardMaterial({color:'#94A3B8',emissive:'#B88A2E',emissiveIntensity:0});box(30,.25,.25,oilPipeM,-14,2.6,22.8);
 flat(5,4,'#FDE68A',RES.H1.x,RES.H1.z,.05);flat(5,4,'#FDE68A',RES.H2.x,RES.H2.z,.05);zone('hold',3,1,20.5,12,2,6);
-fLabel('Fit-out',-39,23.4,'packing');for(let i=0;i<4;i++)box(1.2,3.4,1.2,C.steel,-42+i*2.2,1.7,13);
+fLabel('Routine test bay',-38,23.4,'testbay2');zone('testbay2',-38,3,19,9,6,8);
+const cage2=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(8,5,7)),new THREE.LineBasicMaterial({color:'#334155'}));cage2.position.set(-38,2.5,19);scene.add(cage2);
+const beacon2=new THREE.MeshStandardMaterial({color:'#7F1D1D',emissive:'#FF2D2D',emissiveIntensity:0});cyl(.25,.4,beacon2,-34,5.4,15.6);
+fLabel('Staging',43.5,-11,'staging');for(const z of[-18,-6,6,18])flat(5,4,'#FDE68A',40,z,.06);
 // roof solar strip on the hall's glazed north bay
 solar(-42,-21,28,1,15.5);
 
@@ -644,6 +672,22 @@ for(const u of UNITS){
   const lab=label(chip,0,6.6/s,0,g);U[u.id]={g,core,coil,active,tank,bush,ring,chip,lab,s,ang:0,cls:'',x:''};
 }
 const resPos=id=>{const r=RES[id];return new THREE.Vector3(r.x,r.y||0,r.z)};
+/* People and moving parts that show each station at work */
+const WK=[];
+function worker(x,z,res,span=1.4,ax='x'){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+  const b=new THREE.Mesh(new THREE.CapsuleGeometry(.32,.9,4,8),m('#F97316'));b.position.y=.95;b.castShadow=true;g.add(b);
+  const h=new THREE.Mesh(new THREE.SphereGeometry(.24,10,8),m('#F1C27D'));h.position.y=1.75;g.add(h);
+  const hat=new THREE.Mesh(new THREE.SphereGeometry(.27,10,6,0,Math.PI*2,0,Math.PI/2),m('#F8FAFC'));hat.position.y=1.82;g.add(hat);
+  WK.push({g,x,z,res,span,ax,ph:Math.random()*6})}
+for(const id of['CL-1','CL-2'])worker(RES[id].x+4.5,RES[id].z+2,[id]);
+for(const id of['WM-1','WM-2','WM-3','WM-4','WM-5','WM-6'])worker(RES[id].x+1,RES[id].z+(RES[id].z<0?2.3:-2.3),[id],1);
+for(const id of['AS-1','AS-2','AS-3']){worker(RES[id].x-3,RES[id].z+3.6,[id],2);worker(RES[id].x+3,RES[id].z-3.6,[id],1.5,'z')}
+for(const id of['TK-1','TK-2'])worker(RES[id].x+3.8,RES[id].z+3.5,[id],1.2);
+worker(20,12.5,['OV-1','OV-2','OV-3'],6);worker(-36,43.5,['TB-1'],3);worker(-33,22.8,['TB-2'],1.5);
+worker(-80,-6,null,6);worker(-72,-12,null,4,'z');worker(67,-13,null,2);worker(74,-10,null,1.5,'z');worker(12,36.5,null,8);worker(-84,39,null,3);
+const plates=['CL-1','CL-2'].map(id=>{const z=RES[id].z<-15?-20:-13;return{id,b:box(2.4,.15,1.3,'#CBD5E1',-38,1.3,z,scene,false)}});
+const hoists=['AS-1','AS-2','AS-3'].map(id=>{const r=RES[id];const g=new THREE.Group();g.position.set(r.x,0,r.z-2.6);scene.add(g);cyl(.05,2,C.dark,0,5,0,g,6);box(.7,.5,.5,C.crane,0,3.9,0,g);return{id,g}});
+const steam=[];for(const id of['OV-1','OV-2','OV-3'])for(let i=0;i<4;i++){const sp=new THREE.Mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshBasicMaterial({color:'#FFFFFF',transparent:true,opacity:.5}));scene.add(sp);steam.push({id,sp,o:i/4})}
 function routePos(f,t,k){const F=RES[f],T=RES[t];const p=pathPos([[F.x,F.z],...via(f,t),[T.x,T.z]],k);p.y=(F.y||0)+((T.y||0)-(F.y||0))*k;return p}
 const calls={};
 function callout(id,x,y,z){const e=el('callout','');const o=label(e,x,y,z);o.visible=false;calls[id]={e,o,txt:'',cls:''}}
@@ -666,7 +710,7 @@ function updateWorld(t,dt,playing){
     o.g.visible=vis;o.lab.visible=vis;o.moving=moving;if(!vis)continue;o.g.position.copy(pos);
     const md={core:'core',winding:'coil',assembly:'active',drying:'none',hold:'active',tanking:'tank',testq:'tankb',test:'tankb',yard:'tankb'}[show]||'active';
     o.core.visible=md==='core';o.coil.visible=md==='coil';o.active.visible=md==='active';o.tank.visible=md==='tank'||md==='tankb';o.bush.visible=md==='tankb';
-    if(md==='coil'){const r=u.id==='T-11'?(wm4Broken(t)?0:wm4Slow(t)?1.2:4):4;if(playing)o.ang+=dt*r;o.coil.rotation.x=o.ang}
+    if(md==='coil'){const r=u.id==='T-11'?(wm4Broken(t)?0:wm4Slow(t)?1.2:4):4;o.ang+=dt*r;o.coil.rotation.x=o.ang}
     const st=status(u,t),isSel=sel&&sel.unit===u.id,important=st.cls==='risk'||st.recovered||st.stuck||isSel;
     const cls='chip '+(st.recovered?'good':st.cls)+(important?'':' small')+(isSel?' sel':'');
     if(o.cls!==cls){o.chip.className=cls;o.cls=cls}
@@ -677,7 +721,7 @@ function updateWorld(t,dt,playing){
   }
   for(const id of['WM-1','WM-2','WM-3','WM-4','WM-5','WM-6']){const r=resObj[id],u=occ[id];
     const slow=id==='WM-4'&&wm4Slow(t),broken=id==='WM-4'&&wm4Broken(t),fixed=id==='WM-4'&&agentOn()&&decided('wm4',t)==='approve'&&t<WM4_BREAK+12;
-    if(u&&playing&&!broken)r.angle+=dt*(slow?1.2:4);r.drum.rotation.x=r.angle;
+    if(u&&!broken)r.angle+=dt*(slow?1.2:4);r.drum.rotation.x=r.angle;
     r.ring.visible=slow||broken;r.ring.material=broken?ringBroken:ringWarn;if(r.ring.visible)r.ring.material.opacity=.35+.25*Math.sin(performance.now()/300);
     if(id==='WM-4')setCall('WM4',broken?'Winding machine 4 broke down · T-11 stopped 2 days':fixed?'✓ Inspected · worn bearing replaced':slow?'Machine 4 running slow · nobody reported it':'',broken?'risk':fixed?'ok':'warn')}
   for(const id of['OV-1','OV-2','OV-3'])resObj[id].gm.emissiveIntensity=occ[id]?.55+.15*Math.sin(performance.now()/500):0;
@@ -700,7 +744,16 @@ function updateWorld(t,dt,playing){
   setCall('OIL',t>=OIL_OUT&&t<OIL_EMERGENCY&&!oilOrdered?`Out of oil · T-15 can't be filled · ${Math.round(stock)} kL left`:stock<120?`Oil low · ${Math.round(stock)} kL`:oilOrdered&&t<OIL_ARRIVE_AGENT?`Oil ordered · arrives ${fmtD(OIL_ARRIVE_AGENT)}`:'',t>=OIL_OUT&&t<OIL_EMERGENCY&&!oilOrdered?'risk':oilOrdered?'agent':'warn');
   const arrive=oilOrdered?OIL_ARRIVE_AGENT:OIL_EMERGENCY;tanker.visible=t>=arrive-3&&t<arrive+3;
   for(const p of pulses){const k=(t-AG_READ)/.04;p.s.visible=agentOn()&&k>0&&k<1;if(p.s.visible){const to=p.to==='WM-4'?resPos('WM-4'):U[p.to].g.position.clone();const pt=new THREE.Vector3(-84,8,30).lerp(to,ease(k));pt.y=8+Math.sin(k*Math.PI)*14;p.s.position.copy(pt)}}
-  for(const c of cranes){const mv=UNITS.map(u=>U[u.id]).find(o=>o.g.visible&&o.moving&&Math.abs(o.g.position.z-c.zc)<8&&Math.abs(o.g.position.x)<45);if(mv)c.goal=Math.max(-44,Math.min(34,mv.g.position.x));c.x+=(c.goal-c.x)*Math.min(1,dt*3);c.g.position.x=c.x}
+  const now=performance.now()/1000;
+  for(const w of WK){const busy=!w.res||w.res.some(r=>occ[r]);const k=busy?Math.sin(now*1.3+w.ph):0;w.g.position[w.ax]=(w.ax==='x'?w.x:w.z)+k*w.span;w.g.rotation.y=w.ax==='x'?(Math.cos(now*1.3+w.ph)>0?Math.PI/2:-Math.PI/2):(Math.cos(now*1.3+w.ph)>0?0:Math.PI)}
+  for(const pl of plates){const on=!!occ[pl.id];pl.b.visible=on;if(on)pl.b.position.x=-40+((now*3)%16)}
+  for(const h of hoists){h.g.position.y=occ[h.id]?.8*Math.sin(now*.9):0}
+  for(const st of steam){const on=!!occ[st.id];st.sp.visible=on;if(on){const r=RES[st.id];const k=(now*.35+st.o)%1;st.sp.position.set(r.x-2+k*1.5,10+k*6,r.z+2);st.sp.scale.setScalar(.6+k*1.4);st.sp.material.opacity=.55*(1-k)}}
+  oilPipeM.emissiveIntensity=(occ['TK-1']||occ['TK-2'])?.4+.4*Math.sin(now*4):0;
+  const t2=occ['TB-2'];beacon2.emissiveIntensity=t2?(Math.sin(now*11)>0?2.5:0):0;cage2.material.color.set(t2?'#F97316':'#334155');
+  const busyX={'-16':['CL-1','CL-2'],'0':['AS-1','AS-2','AS-3','WM-1','WM-2','WM-3'],'16':['TK-1','TK-2','OV-1','OV-2','OV-3','TB-2']};
+  for(const c of cranes){const mv=UNITS.map(u=>U[u.id]).find(o=>o.g.visible&&o.moving&&Math.abs(o.g.position.z-c.zc)<8&&Math.abs(o.g.position.x)<45);
+    if(mv)c.goal=Math.max(-44,Math.min(34,mv.g.position.x));else{const xs=(busyX[String(c.zc)]||[]).filter(r=>occ[r]).map(r=>RES[r].x);if(xs.length)c.goal=xs[Math.floor(now/7+c.zc)%xs.length|0]??c.goal}c.x+=(c.goal-c.x)*Math.min(1,dt*3);c.g.position.x=c.x}
   const tr=UNITS.map(u=>U[u.id]).find(o=>o.g.visible&&o.moving&&Math.abs(o.g.position.x-40)<2);if(tr)transferCar.position.z=tr.g.position.z;
   for(const k of trucks){const kk=((t/9)+k.o)%1;const p=pathPos(loop,kk),p2=pathPos(loop,(kk+.003)%1);k.g.position.copy(p);k.g.lookAt(p2);k.g.rotateY(-Math.PI/2)}
   barrier.rotation.z=trucks.some(k=>k.g.position.distanceTo(new THREE.Vector3(96,0,-36))<8)?Math.PI/2.4:0;
@@ -722,7 +775,7 @@ function storyData(t){
   const p=pending(t);
   if(p){const n=DEC.indexOf(p)+1;return{eb,tag:`Decision ${n} of 4`,cls:'agent',h:p.title,p:'The agent has prepared this. Answer in the notification, bottom right.',nums:''}}
   if(t>=H_END-1)return{eb,cls:'ok',h:agentOn()?'The 17 days are done.':'The 17 days are done.',p:agentOn()?'Same plant, same problems. Here is what your decisions changed.':'Switch to "With AI agent" to replay the same days.',nums:cmpTable()};
-  if(t<EV_SHIFTLOG)return{eb,cls:'ok',h:'17 orders in the plant, all on schedule.',p:'Press play to run the factory day by day. Click any building, machine or transformer to see what it does.',nums:''};
+  if(t<EV_SHIFTLOG)return{eb,cls:'ok',h:`${UNITS.length} orders in the plant, all on schedule.`,p:'Press play to run the factory day by day. Click any building, machine or transformer to see what it does.',nums:''};
   if(t<EV_SUPPLIER)return{eb,cls:'warn',h:'Winding machine 4 ran slow overnight.',p:'The night shift wrote it in the log but nobody raised a repair ticket.',nums:''};
   if(!agentOn()){
     if(t>=OIL_OUT&&t<OIL_EMERGENCY)return{eb,cls:'risk',h:'The plant ran out of transformer oil.',p:'T-15 is dried and ready but cannot be filled. The stock report warned on 13 Nov; nobody ordered. Emergency oil arrives 23 Nov.',nums:''};
@@ -737,7 +790,7 @@ function storyData(t){
   const done=Object.keys(DS).length;
   const s=summary();
   return{eb,tag:`${done} of 4 decisions`,cls:s.pen07<100?'ok':'warn',h:DS.t07==='approve'?`T-07 back on track. Ships ${s.t07}.`:`T-07 ships ${s.t07}.`,p:'The agent keeps working in the background. Open the Agent tab to see everything it did.',
-    nums:`<div class="nums"><div><b>${money(s.pen07)}</b><small>T-07 penalty, was ₹1 Cr</small></div><div><b>${17-UNITS.filter(x=>isShipped(x,t)).length}</b><small>orders still in the plant</small></div></div>`};
+    nums:`<div class="nums"><div><b>${money(s.pen07)}</b><small>T-07 penalty, was ₹1 Cr</small></div><div><b>${UNITS.filter(x=>!isShipped(x,t)&&locate(actualSegs(x),t).phase!=='before').length}</b><small>orders still in the plant</small></div></div>`};
 }
 let lastStory='';
 function renderStory(t){const s=storyData(t);const html=`<div class="eyebrow"><span>${s.eb}</span>${s.tag?`<span>${s.tag}</span>`:''}</div><h2>${s.h}</h2><p>${s.p}</p>${s.nums}`;
@@ -857,7 +910,7 @@ function frame(){
 }
 /* ================= Guided demo ================= */
 const TOUR=[
- {t:'A transformer plant, 17 orders in progress',p:'Each label is one customer order, with how much of it is built. Orders move from core and coils, through drying and oil, to the high-voltage test lab and out of the gate.',
+ {t:'A transformer plant with many orders in progress',p:'Each label is one customer order, with how much of it is built. Orders move from core and coils, through drying and oil, to the high-voltage test lab and out of the gate.',
   go(){setMode('base');playing=false;syncPlay();setT(30);sel=null;drawer='units';flyTo('overview')}},
  {t:'Warning signs arrive, and nobody connects them',p:'A machine runs slow overnight. A supplier emails that T-07\'s bushings are stuck at customs. A customer offers flexibility. The messages sit unread in the planning inbox.',
   go(){setMode('base');playing=false;syncPlay();setT(EV_CUSTOMER+.2);sel={unit:'T-07'};drawer='inbox';flyTo('overview')}},
