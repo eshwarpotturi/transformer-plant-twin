@@ -8,6 +8,10 @@ Proof of concept for Straive's Innovation Team. **All data is synthetic.** Figur
 
 `index.html` is a single file. Open it in a modern browser (Chrome or Edge). It loads three.js from a CDN, so it needs internet access.
 
+## Guided demo
+
+Click **▶ Play demo** in the top bar for a 7-step walkthrough: the plant, the warning signs, the cost of not acting, the same days with the agent, the blocked shortcut, four live decisions, and the result. Exit at any time to explore freely.
+
 ## What it shows
 
 - A full site: production hall (core cutting, coil winding clean room, assembly, drying ovens, tank & oil), high-voltage test lab, stores, tank fabrication, oil storage, dispatch, QC lab, workshop and more. Click any building or machine for what it does, key figures and its live status.
