@@ -1,0 +1,844 @@
+<title>Transformer Plant Twin</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the 3D plant fills the screen under a white top bar. Story card top-left, drawer tabs top-right,
+   a details card bottom-left (transformer or facility), approval toasts bottom-right, slim timeline at the bottom.
+   Deliberately one bright daylight look, like an operations wall screen. */
+:root{
+  color-scheme:light;
+  --sky:#DCE7F1; --ink:#0F172A; --ink-2:#334155; --muted:#64748B; --line:#E2E8F0; --card:#FFFFFF; --soft:#F1F5F9;
+  --brand:#1F5F8B; --brand-2:#174A6C; --agent:#6D4FD8; --agent-soft:#EEEAFD;
+  --risk:#E5484D; --risk-soft:#FDECEC; --warn:#D97706; --warn-soft:#FEF3C7; --ok:#15803D; --ok-soft:#DCFCE7;
+  --shadow:0 10px 30px rgba(15,23,42,.14);
+  --font-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+html,body{height:100%}
+body{background:var(--sky);color:var(--ink);font-family:var(--font-body);font-size:13.5px;overflow:hidden}
+*{box-sizing:border-box}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.app{position:relative;height:100%}
+.top{position:absolute;top:0;left:0;right:0;z-index:20;min-height:56px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:rgba(255,255,255,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{margin:0;font-family:var(--font-display);font-weight:700;font-size:24px;letter-spacing:.01em}
+.brand span{color:var(--muted);font-size:12.5px}
+.mid{flex:1;display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap}
+.clock{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--soft);font-weight:600;font-variant-numeric:tabular-nums}
+.clock i{width:8px;height:8px;border-radius:50%;background:#94A3B8}
+.clock.on i{background:#22C55E;box-shadow:0 0 0 4px rgba(34,197,94,.2)}
+.seg{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:8px;cursor:pointer;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.15)}
+.seg button[data-m="agent"][aria-pressed="true"]{color:var(--agent)}
+.right{display:flex;align-items:center;gap:10px}
+.view{border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:var(--card);cursor:pointer}
+.pill{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:6px;background:var(--warn-soft);color:#92400E}
+.stage{position:absolute;inset:0}
+.labels{position:absolute;inset:0;pointer-events:none;z-index:2;overflow:hidden}
+.ov{position:absolute;z-index:10}
+
+.story{top:72px;left:max(16px,env(safe-area-inset-left,0px));width:min(500px,calc(100% - 32px));background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:13px 16px 13px 18px;border-left:6px solid var(--ok)}
+.story.warn{border-left-color:var(--warn)} .story.risk{border-left-color:var(--risk)} .story.agent{border-left-color:var(--agent)}
+.story .eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.story h2{margin:3px 0 4px;font-size:18px;line-height:1.3;text-wrap:balance}
+.story.risk h2{color:var(--risk)} .story.warn h2{color:var(--warn)} .story.agent h2{color:var(--agent)} .story.ok h2{color:var(--ok)}
+.story p{margin:0;color:var(--ink-2);line-height:1.5}
+.nums{display:flex;gap:22px;margin-top:10px;flex-wrap:wrap}
+.nums div b{display:block;font-family:var(--font-display);font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.nums div small{color:var(--muted);font-size:12px}
+.cmp{margin-top:10px;width:100%;border-collapse:collapse;font-size:12.5px}
+.cmp th,.cmp td{padding:5px 8px;border-top:1px solid var(--line);text-align:left}
+.cmp th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.cmp td.bad{color:var(--risk);font-weight:600} .cmp td.good{color:var(--ok);font-weight:600}
+
+.rail{top:72px;right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-height:calc(100% - 170px)}
+.tabs{display:flex;gap:6px;background:var(--card);padding:5px;border-radius:12px;box-shadow:var(--shadow)}
+.tabs button{border:0;background:transparent;border-radius:8px;padding:7px 11px;cursor:pointer;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+.tabs button[aria-pressed="true"]{background:var(--soft);color:var(--ink)}
+.badge{min-width:18px;height:18px;border-radius:999px;background:var(--risk);color:#fff;font-size:11px;display:inline-grid;place-items:center;padding:0 5px}
+.badge.agent{background:var(--agent)}
+.drawer{width:min(370px,calc(100vw - 32px));background:var(--card);border-radius:14px;box-shadow:var(--shadow);overflow:auto;min-height:0}
+.drawer h3{margin:0;padding:12px 14px 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.list{list-style:none;margin:0;padding:0}
+.row{padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:grid;grid-template-columns:auto 1fr auto;gap:3px 10px;align-items:center}
+.row:hover{background:var(--soft)} .row.sel{background:#EAF2F8}
+.row b{font-family:var(--font-mono);font-weight:500}
+.row .c{color:var(--muted);font-size:12px;grid-column:1/4}
+.row .bar{grid-column:1/4;height:5px;border-radius:3px;background:var(--soft);overflow:hidden}
+.row .bar i{display:block;height:100%;background:var(--brand)}
+.row .pc{font-variant-numeric:tabular-nums;font-weight:600;font-size:12px;color:var(--ink-2)}
+.tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.tag.ok{background:var(--ok-soft);color:var(--ok)} .tag.risk{background:var(--risk-soft);color:var(--risk)} .tag.warn{background:var(--warn-soft);color:#92400E}
+.msg{padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+.msg .t{display:flex;justify-content:space-between;color:var(--muted);font-size:12px}
+.msg .f{font-weight:600;margin-top:2px}
+.msg .b{color:var(--ink-2);font-size:12.5px;margin-top:4px;line-height:1.5}
+.msg .s{margin-top:6px;font-size:12px;font-weight:600;color:var(--warn)} .msg .s.read{color:var(--agent)}
+.feed li{padding:10px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
+.feed .k{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;align-self:start;margin-top:1px;white-space:nowrap}
+.k.auto{background:var(--ok-soft);color:var(--ok)} .k.blocked{background:var(--risk-soft);color:var(--risk)} .k.ask{background:var(--warn-soft);color:#92400E} .k.read{background:var(--agent-soft);color:var(--agent)} .k.done{background:var(--ok-soft);color:var(--ok)} .k.no{background:var(--soft);color:var(--muted)}
+.feed .tm{grid-column:2;color:var(--muted);font-size:11.5px}
+.rules{padding:10px 14px 14px;display:grid;gap:10px}
+.rules div b{display:block;font-size:12px;margin-bottom:3px}
+.rules div span{color:var(--ink-2);font-size:12.5px;line-height:1.5}
+.empty{padding:14px;color:var(--muted)}
+
+.card{left:max(16px,env(safe-area-inset-left,0px));bottom:78px;width:min(640px,calc(100% - 32px));max-height:calc(100% - 330px);overflow:auto;background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px 14px}
+.card .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.card .h b{font-size:15px}
+.card .h span{color:var(--muted)}
+.card .x{margin-left:auto;border:0;background:var(--soft);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:16px;line-height:1}
+.pbar{display:flex;align-items:center;gap:10px;margin-top:8px}
+.pbar div{flex:1;height:8px;border-radius:4px;background:var(--soft);overflow:hidden}
+.pbar div i{display:block;height:100%;background:var(--brand);border-radius:4px}
+.pbar b{font-variant-numeric:tabular-nums;font-size:13px}
+.steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin-top:12px;position:relative}
+.steps::before{content:"";position:absolute;left:8%;right:8%;top:9px;height:3px;border-radius:2px;background:var(--line)}
+.step{text-align:center;position:relative;min-width:0}
+.step i{display:block;width:20px;height:20px;border-radius:50%;margin:0 auto 6px;background:var(--card);border:3px solid var(--line)}
+.step.done i{background:var(--ok);border-color:var(--ok)}
+.step.cur i{border-color:var(--brand);box-shadow:0 0 0 5px rgba(31,95,139,.15)}
+.step.cur.risk i{border-color:var(--risk);box-shadow:0 0 0 5px rgba(229,72,77,.15)}
+.step b{display:block;font-size:12px}
+.step small{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step.cur.risk small{color:var(--risk);font-weight:600}
+.info p{margin:6px 0 0;color:var(--ink-2);line-height:1.5}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 16px;margin-top:10px}
+.facts div small{display:block;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em}
+.facts div span{font-weight:600;font-size:13px}
+.now{margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--soft);display:grid;gap:4px}
+.now b{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.now span{font-size:13px}
+.now span.risk{color:var(--risk);font-weight:600} .now span.ok{color:var(--ok);font-weight:600} .now span.warn{color:#92400E;font-weight:600}
+.note{margin-top:8px;color:var(--muted);font-size:11.5px}
+
+.time{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:14px;background:var(--card);border-radius:14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;padding:8px 12px;flex-wrap:wrap}
+.play{width:38px;height:38px;border-radius:50%;border:0;background:var(--brand);color:#fff;display:grid;place-items:center;cursor:pointer;flex:none}
+.play svg{width:14px;height:14px;fill:currentColor}
+.tnow{font-weight:600;width:130px;font-variant-numeric:tabular-nums;flex:none}
+.track{flex:1;min-width:200px;position:relative;padding-top:14px}
+.track input{width:100%;accent-color:var(--brand);margin:0}
+.pins{position:absolute;left:0;right:0;top:0;height:12px}
+.pins button{position:absolute;top:0;width:12px;height:12px;border-radius:50%;border:2px solid var(--card);transform:translateX(-6px);cursor:pointer;padding:0}
+.speed{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--card);cursor:pointer;flex:none}
+
+.toast{right:max(16px,env(safe-area-inset-right,0px));bottom:78px;width:min(390px,calc(100% - 32px));background:#1F2329;color:#F3F4F6;border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.35);padding:14px 16px;border-top:3px solid var(--agent)}
+.toast .a{display:flex;align-items:center;gap:8px;font-size:12px;color:#C7CBD1}
+.toast .a i{width:16px;height:16px;border-radius:4px;background:var(--agent);display:inline-block}
+.toast .a em{margin-left:auto;font-style:normal;color:#A5ACB8}
+.toast h4{margin:8px 0 4px;font-size:15px}
+.toast p{margin:0;color:#D1D5DB;line-height:1.5;font-size:13px}
+.toast blockquote{margin:8px 0 0;padding:8px 10px;border-left:3px solid #6D4FD8;background:#2A2F36;color:#E5E7EB;font-size:12.5px;line-height:1.5}
+.toast .btns{display:flex;gap:8px;margin-top:12px}
+.toast .btns button{flex:1;border:0;border-radius:6px;padding:8px;cursor:pointer;font-weight:600}
+.toast .yes{background:var(--agent);color:#fff} .toast .no{background:#3A3F47;color:#E5E7EB}
+
+.chip{font-size:12px;font-weight:600;background:var(--card);border-radius:999px;padding:3px 9px 3px 7px;display:flex;gap:6px;align-items:center;white-space:nowrap;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,.18);color:var(--ink)}
+.chip .d{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.chip.risk{background:var(--risk);color:#fff} .chip.risk .d{background:#fff}
+.chip.warn .d{background:var(--warn)} .chip.idle .d{background:#94A3B8}
+.chip.good{background:var(--ok);color:#fff} .chip.good .d{background:#fff}
+.chip.sel{outline:3px solid rgba(31,95,139,.35)}
+.chip .x{font-weight:500}
+.chip.small{padding:2px 7px 2px 6px;font-size:10.5px;box-shadow:none;background:rgba(255,255,255,.88)}
+.callout{font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--card);box-shadow:0 4px 14px rgba(15,23,42,.2);white-space:nowrap;border-left:4px solid var(--muted);color:var(--ink)}
+.callout.risk{border-left-color:var(--risk);color:var(--risk)} .callout.warn{border-left-color:var(--warn);color:#92400E}
+.callout.ok{border-left-color:var(--ok);color:var(--ok)} .callout.agent{border-left-color:var(--agent);color:var(--agent)}
+.callout.block{background:var(--risk);color:#fff;border-left-color:#7F1D1D;font-size:13px;padding:8px 12px}
+.bl{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:var(--brand);padding:3px 10px;border-radius:6px;white-space:nowrap;pointer-events:auto;cursor:pointer}
+.bl:hover,.fl:hover{filter:brightness(1.15);text-decoration:underline}
+.bl.minor{background:#475569;font-size:13px}
+.fl{font-family:var(--font-display);font-weight:700;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--brand-2);white-space:nowrap;background:rgba(255,255,255,.85);padding:1px 7px;border-radius:4px;pointer-events:auto;cursor:pointer}
+.far .fl,.far .chip.small,.far .bl.minor{display:none}
+@media (max-width:760px){.story{top:auto;bottom:150px}.card{bottom:150px}.rail{top:118px}.brand span{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><h1>Transformer Plant Twin</h1><span>Power transformer works · 9–25 Nov 2026</span></div>
+    <div class="mid">
+      <span class="clock" id="clock"><i></i><span id="clockT">Wed 11 Nov 10:30</span></span>
+      <div class="seg" role="group" aria-label="Run mode">
+        <button data-m="base" aria-pressed="true">Today, no agent</button>
+        <button data-m="agent" aria-pressed="false">With AI agent</button>
+      </div>
+    </div>
+    <div class="right"><select id="view" class="view" aria-label="Camera view"></select><span class="pill">Synthetic data</span></div>
+  </header>
+  <main class="stage" id="stage"></main>
+  <div class="labels" id="labels"></div>
+  <section class="ov story" id="story" aria-live="polite"></section>
+  <aside class="ov rail">
+    <div class="tabs" role="group" aria-label="Panels">
+      <button data-d="units" aria-pressed="false">Orders <span class="badge" id="riskBadge" hidden>0</span></button>
+      <button data-d="inbox" aria-pressed="false">Inbox <span class="badge" id="inboxBadge" hidden>0</span></button>
+      <button data-d="agent" aria-pressed="false" id="agentTab" hidden>Agent <span class="badge agent" id="agentBadge" hidden>0</span></button>
+    </div>
+    <div class="drawer" id="drawer" hidden></div>
+  </aside>
+  <section class="ov card" id="card" hidden></section>
+  <section class="ov toast" id="toast" hidden role="alertdialog" aria-labelledby="toastT">
+    <div class="a"><i></i>Plant Twin · AI agent<em id="toastN"></em></div>
+    <h4 id="toastT"></h4><div id="toastB"></div>
+    <div class="btns"><button class="yes" id="approve"></button><button class="no" id="reject"></button></div>
+  </section>
+  <section class="ov time">
+    <button class="play" id="play" aria-label="Play"><svg viewBox="0 0 16 16" id="playIcon"><path d="M3 2l11 6-11 6z"/></svg></button>
+    <div class="tnow" id="tnow">Wed 11 Nov 10:30</div>
+    <div class="track"><div class="pins" id="pins"></div><input type="range" id="scrub" min="0" max="408" step="0.05" value="58.5" aria-label="Time"></div>
+    <select id="speed" class="speed" aria-label="Playback speed"><option value="1">1 hour / sec</option><option value="6" selected>6 hours / sec</option><option value="24">1 day / sec</option></select>
+  </section>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+/* ================= Synthetic plant data (hours from Mon 9 Nov 2026 00:00) ================= */
+const H_END=408, T0=new Date(2026,10,9,0,0);
+const EV_SHIFTLOG=54, EV_SUPPLIER=57+10/60, EV_CUSTOMER=57+40/60;
+const AG_READ=57.25, AG_CHASE=57.33, AG_BLOCK=57.37;
+const WM4_BREAK=86, WM4_FIXED=134, OIL_OUT=282, OIL_EMERGENCY=354, OIL_ORDER_AT=106, OIL_ARRIVE_AGENT=226;
+
+/* Four decisions the agent brings to a person, in order */
+const DEC=[
+ {id:'wm4',at:57.30,title:'Take winding machine 4 offline tonight?',yes:'Approve inspection',no:'Keep it running',
+  body:()=>`<p>The night shift logged grinding on machine 4 but raised no ticket. A 4-hour inspection tonight (22:00–02:00) costs T-11 four hours and does not move its ship date. If it breaks during a shift, repair takes about 2 days.</p>`},
+ {id:'t07',at:57.40,title:'Approve recovery plan for T-07?',yes:'Approve night shift',no:'Reject',
+  body:()=>`<p>Bushings are stuck at customs; the agent has already asked the supplier to fast-track them (now due 16 Nov). Add a night shift in the test lab, ₹6 L overtime. T-07 then ships <b>20 Nov</b> instead of 23 Nov and the penalty drops from <b>₹1 Cr to ₹25 L</b>.</p>`},
+ {id:'mail',at:57.55,title:'Send this update to Western Grid Utility?',yes:'Send',no:'Hold for now',
+  body:()=>{const d=DS.t07==='approve'?'20 Nov':'21 Nov',w=DS.t07==='approve'?'one day':'two days';return`<p>The agent drafted the customer notice. Nothing goes out without your OK.</p><blockquote>Dear Ms Rao, the 420 kV bushings for your 315 MVA unit (T-07) were held at Chennai customs. We have fast-tracked clearance and re-planned testing. T-07 will now ship on <b>${d}</b>, ${w} after the contract date. We will confirm the test date by Friday.</blockquote>`}},
+ {id:'oil',at:OIL_ORDER_AT,title:'Order transformer oil now?',yes:'Place order',no:'Wait',
+  body:()=>`<p>Oil storage holds <b>${Math.round(oilStock(OIL_ORDER_AT))} kL</b>. The next five tank fillings need about 300 kL, and delivery takes 5 days. Without an order, oil runs out around 21 Nov and T-15 waits. Order 150 kL from the usual refinery (₹1.6 Cr).</p>`},
+];
+let DS={};  // decision state: id -> 'approve' | 'reject'
+const decideAt=id=>DEC.find(d=>d.id===id).at+.06;
+const decided=(id,t)=>DS[id]&&t>=decideAt(id)?DS[id]:null;
+
+/* T-07 schedule variants */
+const T07_ORIG=[['drying','OV-2',0,54],['hold','H1',54,124],['tanking','TK-1',124,162],['test','TB-1',164,200],['yard','Y5',200,252]];
+const T07_LATE=[['drying','OV-2',0,54],['hold','H1',54,224],['tanking','TK-1',224,272],['test','TB-1',274,310],['yard','Y5',310,344]];
+const T07_CHASED=[['drying','OV-2',0,54],['hold','H1',54,176],['tanking','TK-1',176,220],['testq','Q1',220,238],['test','TB-1',238,274],['yard','Y5',274,308]];
+const T07_PLAN=[['drying','OV-2',0,54],['hold','H1',54,176],['tanking','TK-1',176,220],['testq','Q1',220,238],['test','TB-1',238,258],['yard','Y5',258,270]];
+/* T-11: machine 4 inspected (good) or breaks down (bad) */
+const T11_GOOD=[['winding','WM-4',0,204],['assembly','AS-2',214,304],['drying','OV-2',306,408]];
+const T11_BAD=[['winding','WM-4',0,248],['assembly','AS-2',258,348],['drying','OV-2',352,408]];
+/* T-15: oil ordered in time (good) or waits for emergency oil (bad) */
+const T15_GOOD=[['winding','WM-3',0,90],['assembly','AS-2',92,200],['drying','OV-2',204,280],['tanking','TK-1',282,330],['testq','Q2',330,392],['test','TB-1',392,428],['yard','Y3',428,440]];
+const T15_BAD=[['winding','WM-3',0,90],['assembly','AS-2',92,200],['drying','OV-2',204,280],['hold','H2',280,354],['tanking','TK-1',354,402],['testq','Q2',402,428],['test','TB-1',428,464],['yard','Y3',464,476]];
+
+const UNITS=[
+ {id:'T-03',cust:'Eastern Power Corp',mva:200,kv:220,planned:56,pen:15,segs:[['test','TB-1',0,36],['yard','Y1',36,56]]},
+ {id:'T-05',cust:'Coastal Transmission',mva:100,kv:132,planned:104,pen:10,segs:[['tanking','TK-1',0,36],['test','TB-1',38,74],['yard','Y2',74,104]]},
+ {id:'T-06',cust:'Metro Grid',mva:250,kv:400,planned:130,pen:20,segs:[['drying','OV-1',0,30],['tanking','TK-2',36,76],['test','TB-1',78,114],['yard','Y3',114,130]]},
+ {id:'T-08',cust:'North Hydro',mva:160,kv:220,planned:178,pen:15,segs:[['assembly','AS-1',0,20],['drying','OV-3',24,84],['tanking','TK-1',86,124],['test','TB-1',126,162],['yard','Y4',162,178]]},
+ {id:'T-07',cust:'Western Grid Utility',mva:315,kv:400,planned:252,pen:25},
+ {id:'T-09',cust:'State Utility B',mva:160,kv:220,planned:296,pen:12,fat:true,segs:[['assembly','AS-2',0,72],['drying','OV-1',76,140],['tanking','TK-2',142,198],['test','TB-1',200,236],['yard','Y6',236,296]]},
+ {id:'T-10',cust:'Southern Renewables',mva:125,kv:220,planned:392,pen:10,segs:[['winding','WM-2',0,60],['assembly','AS-1',64,130],['drying','OV-3',134,200],['tanking','TK-2',204,260],['testq','Q1',260,318],['test','TB-1',318,354],['yard','Y1',354,392]]},
+ {id:'T-14',cust:'Ocean Wind Export',mva:240,kv:400,planned:430,pen:20,segs:[['winding','WM-1',0,60],['assembly','AS-3',64,150],['drying','OV-1',152,220],['hold','H1',220,262],['tanking','TK-2',262,310],['testq','Q1',310,356],['test','TB-1',356,392],['yard','Y2',392,420]]},
+ {id:'T-15',cust:'Capital Metro Rail',mva:180,kv:220,planned:444,pen:15},
+ {id:'T-11',cust:'Central Grid',mva:315,kv:400,planned:672,pen:25},
+ {id:'T-16',cust:'Valley Solar Park',mva:150,kv:220,planned:560,pen:12,segs:[['winding','WM-6',30,150],['assembly','AS-1',152,250],['drying','OV-3',252,408]]},
+ {id:'T-18',cust:'Northern Steel Works',mva:90,kv:132,planned:600,pen:8,segs:[['winding','WM-5',0,150],['assembly','AS-3',152,260],['drying','OV-1',262,408]]},
+ {id:'T-12',cust:'Hill State Power',mva:100,kv:132,planned:696,pen:10,segs:[['core','CL-1',0,60],['winding','WM-1',64,260],['assembly','AS-3',270,408]]},
+ {id:'T-13',cust:'Delta Industrial',mva:63,kv:132,planned:744,pen:8,segs:[['core','CL-2',40,120],['winding','WM-5',152,408]]},
+ {id:'T-17',cust:'Port Authority Grid',mva:200,kv:220,planned:760,pen:15,segs:[['core','CL-1',80,150],['winding','WM-3',152,408]]},
+ {id:'T-19',cust:'Lake City Discom',mva:50,kv:66,planned:790,pen:6,segs:[['winding','WM-6',160,408]]},
+ {id:'T-20',cust:'Highland Hydro',mva:160,kv:220,planned:800,pen:12,segs:[['core','CL-2',152,248],['winding','WM-4',250,408]]},
+];
+const MSGS=[
+ {id:'m1',at:EV_SHIFTLOG,from:'Night shift log',subj:'Machine noise',about:'T-11',body:'WM-4 grinding noise during tension change, ran at reduced speed after 2am, maint informed verbally, no ticket raised.'},
+ {id:'m2',at:EV_SUPPLIER,from:'Anil · ABC Insulators',subj:'Bushings delayed',about:'T-07',body:'Regret to inform the 420kV bushings for PO 4500-1182 are held at Chennai port customs. Revised ETA 18th instead of 13th. May improve by 1–2 days if documents are cleared today.'},
+ {id:'m3',at:EV_CUSTOMER,from:'State Utility B',subj:'Can accept later delivery',about:'T-09',body:'We can accept the unit at site up to 4 days after the contract date, provided the FAT witness date stays as planned.'},
+ {id:'m4',at:100,from:'Stores · weekly stock report',subj:'Oil stock',about:'T-15',body:'Transformer oil: tanks 1–6 at 210 kL combined. No open purchase order. Next fillings: T-09, T-07, T-10, T-14, T-15.'},
+];
+/* What the agent does on its own (no approval) */
+const AUTO=[
+ {at:AG_READ,k:'read',text:'Read 3 unread messages and linked them to T-07, T-09 and winding machine 4.'},
+ {at:AG_READ+.02,k:'read',text:'Noted T-09\'s customer can accept delivery 4 days later. Kept as a backup.'},
+ {at:AG_CHASE,k:'auto',text:'Asked ABC Insulators to fast-track customs with the cleared documents. Bushings now due 16 Nov.'},
+ {at:AG_BLOCK,k:'blocked',text:'Considered skipping T-07\'s heat-run test to gain a day. Blocked: this test is mandatory.'},
+ {at:101,k:'read',text:'Read the weekly stock report. Oil will run short before T-15 is filled.'},
+ {at:150,k:'auto',text:'Moved T-14 ahead of T-18 in assembly bay 3 so the drying ovens stay full.'},
+ {at:222,k:'auto',text:'Booked crane 3 and the transfer car for T-07\'s move to the test lab.'},
+];
+
+/* Site positions (metres; x east, z south) */
+const RES={
+ 'CL-1':{x:-14,z:-19,y:1,k:'core'},'CL-2':{x:-14,z:-12.5,y:1,k:'core'},
+ 'WM-1':{x:-39,z:-3.6,k:'wind'},'WM-2':{x:-30,z:-3.6,k:'wind'},'WM-3':{x:-21,z:-3.6,k:'wind'},
+ 'WM-4':{x:-39,z:3.6,k:'wind'},'WM-5':{x:-30,z:3.6,k:'wind'},'WM-6':{x:-21,z:3.6,k:'wind'},
+ 'AS-1':{x:4,z:0,y:.3,k:'asm'},'AS-2':{x:15,z:0,y:.3,k:'asm'},'AS-3':{x:26,z:0,y:.3,k:'asm'},
+ 'OV-1':{x:31,z:17.5,k:'oven'},'OV-2':{x:23,z:17.5,k:'oven'},'OV-3':{x:15,z:17.5,k:'oven'},
+ 'H1':{x:6,z:19.5,k:'hold'},'H2':{x:-1,z:21.5,k:'hold'},'TK-1':{x:-5,z:15.5,y:.4,k:'tank'},'TK-2':{x:-16,z:15.5,y:.4,k:'tank'},
+ 'Q1':{x:-14,z:31,k:'queue'},'Q2':{x:-20,z:31,k:'queue'},'TB-1':{x:-36,z:49,y:.1,k:'test'},
+ 'Y1':{x:2,z:42,y:1.1,k:'yard'},'Y2':{x:14,z:42,y:1.1,k:'yard'},'Y3':{x:26,z:42,y:1.1,k:'yard'},
+ 'Y4':{x:2,z:54,y:1.1,k:'yard'},'Y5':{x:14,z:54,y:1.1,k:'yard'},'Y6':{x:26,z:54,y:1.1,k:'yard'},
+};
+function via(f,t){const a=RES[f].k,b=RES[t].k,F=RES[f],T=RES[t];
+ if(a==='core'&&b==='wind')return[[F.x,-8],[-4,-8],[-4,0],[T.x,0]];
+ if(a==='wind'&&b==='asm')return[[F.x,0],[-4,0]];
+ if(a==='asm'&&b==='oven')return[[F.x,-5.5],[40,-5.5],[40,11],[T.x,11]];
+ if(a==='oven'||a==='hold')return[[F.x,11],[T.x,11]];
+ if(a==='tank'&&b==='test')return[[F.x,10],[-30,10],[-30,24],[-30,30],[-30,37],[T.x,42]];
+ if(a==='tank'&&b==='queue')return[[F.x,10],[-30,10],[-30,24],[-30,30],[T.x,30]];
+ if(a==='queue'&&b==='test')return[[F.x,33],[-30,33],[-30,37],[T.x,42]];
+ if(a==='test'&&b==='yard')return[[-30,42],[-30,37],[-30,30],[T.x,30]];
+ return[];}
+const VIEWS={
+ overview:{n:'Whole site',p:[-6,150,140],t:[-6,0,8]},
+ hall:{n:'Production hall',p:[6,70,70],t:[0,0,2]},
+ clean:{n:'Coil winding room',p:[-16,28,30],t:[-28,0,0]},
+ drying:{n:'Drying & tank',p:[12,32,50],t:[8,0,15]},
+ lab:{n:'High-voltage test lab',p:[-12,40,86],t:[-33,0,47]},
+ stores:{n:'Stores & receiving',p:[-58,40,32],t:[-72,0,-4]},
+ oil:{n:'Oil storage',p:[86,36,52],t:[70,0,24]},
+ tankfab:{n:'Tank fabrication',p:[92,40,22],t:[75,0,-11]},
+ dispatch:{n:'Dispatch yard',p:[30,44,90],t:[14,0,48]},
+};
+const STAGE={core:'Making core',winding:'Winding coils',assembly:'Assembly',drying:'Drying in oven',hold:'Waiting for parts',tanking:'Tank & oil',testq:'Waiting for test',test:'High-voltage test',yard:'Ready to ship'};
+const STEPS=[['core','1 Core & coils'],['assembly','2 Assembly'],['drying','3 Drying'],['tanking','4 Tank & oil'],['test','5 HV test'],['yard','6 Ship']];
+const SIDX={core:0,winding:0,assembly:1,drying:2,hold:2.5,tanking:3,testq:3.5,test:4,yard:5};
+/* share of total build effort per stage, used for % complete */
+const ORDER=['core','winding','assembly','drying','tanking','test','yard'];
+const WT={core:.08,winding:.24,assembly:.16,drying:.16,tanking:.14,test:.12,yard:.10};
+
+/* ================= Helpers ================= */
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const pad=n=>String(n).padStart(2,'0'), at=h=>new Date(T0.getTime()+h*3600e3);
+const fmtDT=h=>{const d=at(h);return`${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]} ${pad(d.getHours())}:${pad(d.getMinutes())}`};
+const fmtD=h=>{const d=at(h);return`${d.getDate()} ${MON[d.getMonth()]}`};
+const fmtDur=h=>{h=Math.max(0,h);const d=Math.floor(h/24),hh=Math.floor(h%24),m=Math.floor(h*60%60);return d?`${d}d ${hh}h`:hh?`${hh}h ${pad(m)}m`:`${m} min`};
+const money=v=>v>=100?`₹${(v/100).toFixed(1)} Cr`:`₹${Math.round(v)} L`;
+const $=id=>document.getElementById(id);
+const ease=k=>k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+
+/* ================= Mode & schedule logic ================= */
+let MODE='base';
+const agentOn=()=>MODE==='agent';
+function finalSegs(id){
+  if(id==='T-07'){if(!agentOn())return T07_LATE;return DS.t07==='approve'?T07_PLAN:T07_CHASED}
+  if(id==='T-11')return agentOn()&&DS.wm4==='approve'?T11_GOOD:T11_BAD;
+  if(id==='T-15')return agentOn()&&DS.oil==='approve'?T15_GOOD:T15_BAD;
+  return UNITS.find(u=>u.id===id).segs;
+}
+const actualSegs=u=>finalSegs(u.id);
+function knownSegs(u,t){
+  if(u.id==='T-07'){if(t<EV_SUPPLIER)return T07_ORIG;if(!agentOn()||t<AG_CHASE)return T07_LATE;return decided('t07',t)==='approve'?T07_PLAN:T07_CHASED}
+  if(u.id==='T-11'){if(agentOn()&&decided('wm4',t)==='approve')return T11_GOOD;return t>=WM4_BREAK?T11_BAD:T11_GOOD}
+  if(u.id==='T-15'){if(agentOn()&&decided('oil',t)==='approve')return T15_GOOD;if(t>=OIL_OUT||(agentOn()&&decided('oil',t)))return T15_BAD;return T15_GOOD}
+  return u.segs;
+}
+const bushArrive=()=>agentOn()?172:216;
+const wm4Broken=t=>(!agentOn()||DS.wm4!=='approve')&&t>=WM4_BREAK&&t<WM4_FIXED;
+const wm4Slow=t=>t>=50&&t<WM4_BREAK&&!(agentOn()&&decided('wm4',t)==='approve');
+function oilStock(t){
+  let s=420;
+  for(const u of UNITS){const g=actualSegs(u).find(x=>x[0]==='tanking');if(!g)continue;const[, ,a,b]=g;if(t>=b)s-=60;else if(t>a)s-=60*(t-a)/(b-a)}
+  const arrive=agentOn()&&DS.oil==='approve'?OIL_ARRIVE_AGENT:OIL_EMERGENCY;if(t>=arrive)s+=150;
+  return Math.max(0,s);
+}
+function locate(segs,t){
+  if(t<segs[0][2])return{phase:'before',i:-1};
+  for(let i=0;i<segs.length;i++){const[, ,s,e]=segs[i];if(t>=s&&t<e)return{phase:'in',i,seg:segs[i]};const nx=segs[i+1];if(t>=e&&(!nx||t<nx[2]))return{phase:nx?'gap':'after',i,seg:segs[i]}}
+  return{phase:'after',i:segs.length-1,seg:segs.at(-1)};
+}
+function isShipped(u,t){const l=actualSegs(u).at(-1);return l[0]==='yard'&&t>=l[3]}
+function projected(u,t){const l=knownSegs(u,t).at(-1);return l[0]==='yard'?l[3]:u.planned}
+const lateDays=(u,t)=>{const h=projected(u,t)-u.planned;return h>.5?Math.ceil(h/24):0};
+function pct(u,t){
+  const segs=actualSegs(u);if(isShipped(u,t))return 100;
+  const first=ORDER.indexOf(segs[0][0]);let p=0;for(let i=0;i<first;i++)p+=WT[ORDER[i]];
+  for(const[k, ,s,e]of segs){if(!(k in WT))continue;if(t>=e)p+=WT[k];else if(t>s)p+=WT[k]*(t-s)/(e-s)}
+  if(t<segs[0][2])p=first?p:0;
+  return Math.min(99,Math.round(p*100));
+}
+function status(u,t){
+  const loc=locate(actualSegs(u),t);
+  if(loc.phase==='before')return{key:'before',label:'Not started',cls:'idle'};
+  if(isShipped(u,t))return{key:'shipped',label:'Shipped',cls:'idle'};
+  const k=loc.seg[0],ld=lateDays(u,t);
+  const recovered=u.id==='T-07'&&agentOn()&&decided('t07',t)==='approve';
+  let label=STAGE[k];if(u.id==='T-11'&&wm4Broken(t))label='Machine broken';if(u.id==='T-15'&&k==='hold')label='Waiting for oil';
+  const stuck=(u.id==='T-11'&&wm4Broken(t))||(u.id==='T-15'&&k==='hold');
+  return{key:k,label,late:ld,cls:ld?(recovered?'warn':'risk'):(k==='hold'||stuck?'warn':'ok'),recovered,stuck};
+}
+
+/* ================= Facility information (clickable) ================= */
+const INFO={
+ stores:{n:'Stores & receiving',d:'Raw materials and bought-in parts arrive by truck, are checked, and wait here until production calls them off.',
+  f:[['Floor area','6,800 m²'],['Electrical steel (CRGO)','~420 t in stock'],['Copper conductor','~130 t'],['Lead time, bushings','12–16 weeks'],['Lead time, steel','10–14 weeks'],['Inbound trucks','8–12 a day']],
+  live:t=>[[`T-07's bushings: ${t<EV_SUPPLIER?'due 13 Nov':t<bushArrive()?(agentOn()&&t>=AG_CHASE?'fast-tracked, due 16 Nov':'stuck at customs, due 18 Nov'):'received'}`,t>=EV_SUPPLIER&&t<bushArrive()?'risk':'']]},
+ core:{n:'Core cutting & stacking',d:'Grain-oriented electrical steel coils are slit and cut into thin laminations, then stacked by hand in a step-lap pattern to form the magnetic core.',
+  f:[['Cut-to-length lines','2'],['Output','~9 t per line per shift'],['Lamination thickness','0.23–0.27 mm'],['Stacking a 315 MVA core','3–4 days'],['Crane','25 t bay crane']],live:t=>busyLines(['CL-1','CL-2'],t)},
+ insul:{n:'Insulation parts',d:'Pressboard and paper are cut, machined and glued into spacers, cylinders and barriers that keep the windings apart.',
+  f:[['Machines','4 CNC routers and presses'],['Pressboard used','~8 t per large unit'],['Lead time','Made to order, 5–7 days']],live:()=>[]},
+ clean:{n:'Coil winding room',d:'Copper conductor is wound into coils on winding machines in a sealed, dust-controlled room. Dust or moisture here can cause an insulation failure years later.',
+  f:[['Machines','6 (horizontal and vertical)'],['Air quality','ISO 7 clean room'],['Humidity','below 40% RH'],['Winding set, 315 MVA','8–10 days'],['Shifts','3 a day']],live:t=>busyLines(['WM-1','WM-2','WM-3','WM-4','WM-5','WM-6'],t)},
+ assembly:{n:'Active-part assembly',d:'The coils are lowered over the core legs, the top yoke is restacked and the whole "active part" is pressed and clamped.',
+  f:[['Assembly bays','3'],['Coil press','300 t hydraulic'],['Bay crane','100 t'],['Assembly time','4–6 days']],live:t=>busyLines(['AS-1','AS-2','AS-3'],t)},
+ ovens:{n:'Vapour-phase drying ovens',d:'The active part is heated with kerosene vapour under vacuum to drive moisture out of the paper insulation. It cannot leave until moisture is below spec.',
+  f:[['Ovens','3 chambers'],['Cycle','3–6 days'],['Target moisture','≤ 0.5% in insulation'],['Vacuum','< 1 mbar at end of cycle'],['Kerosene plant','outside, south wall']],live:t=>busyLines(['OV-1','OV-2','OV-3'],t,true)},
+ tanking:{n:'Tanking & oil filling',d:'The dried active part goes into its steel tank within hours, before it can absorb moisture. The tank is evacuated and filled with treated oil, then left to settle.',
+  f:[['Stations','2'],['Oil treatment','6,000 L/hour, degassed'],['Oil per large unit','~60 kL'],['Settling','24–48 hours'],['Vacuum hold','≤ 1 mbar']],
+  live:t=>[...busyLines(['TK-1','TK-2'],t),[`Oil in storage: ${Math.round(oilStock(t))} kL`,oilStock(t)<60?'risk':oilStock(t)<120?'warn':'']]},
+ hold:{n:'Hold area',d:'A marked bay where units wait when a part or a slot is missing. Anything sitting here is costing time.',f:[['Spaces','2']],
+  live:t=>{const r=[];for(const u of UNITS){const s=actualSegs(u).find(x=>x[0]==='hold'&&t>=x[2]&&t<x[3]);if(s)r.push([`${u.id} waiting · ${u.id==='T-15'?'no oil':'bushings'}`,'warn'])}return r.length?r:[['Empty','ok']]}},
+ testlab:{n:'High-voltage test lab',d:'Every transformer is tested before it ships: ratio, losses, insulation and lightning-impulse tests. Customers often fly in to watch (factory acceptance test). One bay, so it is the plant\'s bottleneck.',
+  f:[['Test bays','1 shielded bay'],['Impulse generator','2,400 kV'],['Routine test, large unit','1.5–2 days'],['Booked next 7 days','see below'],['Safety','Interlocked cage, red beacon when live']],
+  live:t=>{const cur=UNITS.find(u=>{const s=actualSegs(u).find(x=>x[1]==='TB-1');return s&&t>=s[2]&&t<s[3]});let busy=0;for(const u of UNITS)for(const s of actualSegs(u))if(s[1]==='TB-1')busy+=Math.max(0,Math.min(s[3],t+168)-Math.max(s[2],t));
+   return[[cur?`Testing ${cur.id} now${cur.fat?' · customer watching':''}`:'Free right now',cur?'':'ok'],[`Booked ${Math.round(busy/168*100)}% of the next 7 days`,busy/168>.8?'warn':'']]}},
+ impulse:{n:'Impulse generator',d:'Simulates a lightning strike on the transformer to prove its insulation. The stacked stages charge in parallel and fire in series.',f:[['Rating','2,400 kV, 240 kJ'],['Stages','12'],['Test per unit','~6 hours']],live:()=>[]},
+ dispatch:{n:'Dispatch yard',d:'Tested units are drained of oil, filled with dry nitrogen and loaded on heavy-haul trailers or rail wagons. Radiators and bushings travel separately.',
+  f:[['Trailer slots','6'],['Trailer','12-axle hydraulic, 300 t'],['Rail siding','1 track, well-wagon'],['Prep for shipping','1–2 days']],
+  live:t=>{const n=UNITS.filter(u=>!isShipped(u,t)&&u.planned<=H_END).sort((a,b)=>projected(a,t)-projected(b,t))[0];return n?[[`Next out: ${n.id} on ${fmtD(projected(n,t))}`,lateDays(n,t)?'risk':'']]:[]}},
+ tankfab:{n:'Tank fabrication & paint',d:'Steel plate is cut, bent and welded into tanks and covers, leak-tested, shot-blasted and painted. Kept in its own building so welding fumes and grit stay away from the clean areas.',
+  f:[['Welding bays','4'],['Tank, 315 MVA','3–4 weeks to make'],['Leak test','Pressure + vacuum, 24 h'],['Paint','2-coat epoxy, booth with dryer'],['Steel used','~45 t per large tank']],live:()=>[['3 tanks in progress, on schedule','ok']]},
+ oil:{n:'Transformer oil storage',d:'Mineral oil arrives by road tanker, is stored in bunded tanks and treated (filtered, dried, degassed) before it goes into a transformer.',
+  f:[['Tanks','6 × 80 kL'],['Capacity','480 kL'],['Per large unit','~60 kL'],['Supplier lead time','5 days'],['Bund','110% of largest tank']],
+  live:t=>{const s=oilStock(t);return[[`In stock: ${Math.round(s)} kL (${Math.round(s/480*100)}%)`,s<60?'risk':s<120?'warn':'ok'],[agentOn()&&DS.oil==='approve'?`Order placed · arriving ${fmtD(OIL_ARRIVE_AGENT)}`:t>=OIL_OUT?`Emergency order · arriving ${fmtD(OIL_EMERGENCY)}`:'No open purchase order',t>=OIL_OUT&&t<OIL_EMERGENCY?'risk':'']]}},
+ office:{n:'Planning office',d:'Production planners, purchasing and customer project managers. Every email, shift log and supplier notice lands here.',f:[['Planners','6'],['Systems','ERP + MES, plus email and phone']],
+  live:t=>{const n=MSGS.filter(m=>t>=m.at).length;return[[agentOn()&&t>=AG_READ?`Agent has read ${n} messages`:`${n} messages, unread`,agentOn()?'ok':(n?'warn':'')]]}},
+ substation:{n:'Test supply substation',d:'Feeds the test lab with variable voltage and frequency so units can be tested at full rating.',f:[['Incoming','33 kV'],['Test transformer','40 MVA'],['Compensation','Reactor bank']],live:()=>[]},
+ qclab:{n:'Quality & oil lab',d:'Tests every oil batch and samples from every finished unit: moisture, breakdown voltage and dissolved gases.',f:[['Tests per unit','DGA, moisture, BDV'],['Turnaround','4–6 hours'],['Staff','3 chemists']],live:()=>[]},
+ workshop:{n:'Maintenance workshop',d:'Keeps machines and cranes running. Raises and closes repair tickets.',f:[['Technicians','9 per day'],['Spares','Bearings, drives, hydraulics']],
+  live:t=>[[wm4Broken(t)?'Repairing winding machine 4 (2 days)':agentOn()&&decided('wm4',t)==='approve'&&t<74?'Inspection of machine 4 booked 22:00':agentOn()&&decided('wm4',t)==='approve'?'Machine 4 bearing replaced':t>=50&&t<WM4_BREAK?'No ticket for machine 4':'No open breakdowns',wm4Broken(t)?'risk':'']]},
+ packing:{n:'Packing & accessories',d:'Radiators, conservators, bushings and cooling fans are crated and shipped separately from the main tank.',f:[['Crates per large unit','25–40'],['Covered storage','1,200 m²']],live:()=>[]},
+ dryair:{n:'Dry air & compressed air plant',d:'Supplies very dry air to the winding room and to units under assembly so the insulation does not pick up moisture.',f:[['Dew point','−40 °C'],['Compressors','3 × 250 kW']],live:()=>[]},
+ gate:{n:'Main gate & weighbridge',d:'Every truck is logged and weighed in and out. Oversize loads need a police escort booking.',f:[['Weighbridge','100 t'],['Trucks a day','20–30']],live:()=>[]},
+ canteen:{n:'Canteen & parking',d:'Three shifts of about 450 people in total.',f:[['People on site','~450 over 3 shifts'],['Parking','220 cars, 60 bikes']],live:()=>[]},
+ water:{n:'Fire water & cooling',d:'Fire-fighting water reserve and a cooling tower for the drying plant.',f:[['Fire tank','600 m³'],['Sprinklers','Oil areas and stores']],live:()=>[]},
+ scrap:{n:'Scrap & recovery',d:'Copper offcuts and steel scrap are sorted and sold back to recyclers.',f:[['Copper recovered','~6 t a month']],live:()=>[]},
+};
+function busyLines(ids,t,moist){return ids.map(id=>{const u=UNITS.find(u=>{const s=actualSegs(u).find(x=>x[1]===id);return s&&t>=s[2]&&t<s[3]});
+  if(id==='WM-4'&&wm4Broken(t))return[`${id}: broken down, repair under way`,'risk'];
+  if(!u)return[`${id}: free`,''];const s=actualSegs(u).find(x=>x[1]===id);
+  let extra='';if(moist){const k=(t-s[2])/(s[3]-s[2]);extra=` · moisture ${(.4+2.6*Math.exp(-4*k)).toFixed(1)}%`}
+  return[`${id}: ${u.id} until ${fmtD(s[3])}${extra}${id==='WM-4'&&wm4Slow(t)?' · running slow':''}`,id==='WM-4'&&wm4Slow(t)?'warn':'']})}
+
+/* ================= Three.js setup ================= */
+const host=$('stage'), labelHost=$('labels');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;host.appendChild(renderer.domElement);
+const labelR=new CSS2DRenderer();labelR.domElement.style.position='absolute';labelR.domElement.style.inset='0';labelHost.appendChild(labelR.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#DCE7F1');scene.fog=new THREE.Fog('#DCE7F1',280,600);
+const camera=new THREE.PerspectiveCamera(38,1,1,1200);camera.position.set(...VIEWS.overview.p);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(...VIEWS.overview.t);controls.enableDamping=true;controls.dampingFactor=.08;
+controls.minDistance=12;controls.maxDistance=340;controls.minPolarAngle=.15;controls.maxPolarAngle=Math.PI/2-.08;
+scene.add(new THREE.HemisphereLight('#F8FBFF','#C5D0DC',1.1));
+const sun=new THREE.DirectionalLight('#FFFFFF',1.9);sun.position.set(60,150,90);sun.castShadow=true;
+Object.assign(sun.shadow.camera,{left:-140,right:140,top:110,bottom:-110,far:460});sun.shadow.mapSize.set(4096,4096);sun.shadow.bias=-.0004;scene.add(sun);
+const C={grass:'#CFDCC6',road:'#C9D0D8',floor:'#F3F5F8',clean:'#E8F2F8',wall:'#1F5F8B',wallDark:'#174A6C',steel:'#9AA6B2',machine:'#4B5966',dark:'#334155',
+ copper:'#C47A3C',tank:'#6B7C86',crate:'#C9A66B',crane:'#F2B705',aisle:'#F5C400',rail:'#7A6A58',tree:'#7FA27A',roof:'#DBE7F5',light:'#FFF7ED',glass:'#BFD8EA',primer:'#B4533A',solar:'#1E3A5F'};
+const MAT={};const m=(c,o={})=>MAT[c+JSON.stringify(o)]||(MAT[c+JSON.stringify(o)]=new THREE.MeshStandardMaterial({color:c,roughness:.8,metalness:.1,...o}));
+const invisible=new THREE.MeshBasicMaterial({visible:false});
+function box(w,h,d,c,x=0,y=0,z=0,p=scene,sh=true){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),typeof c==='string'?m(c):c);o.position.set(x,y,z);o.castShadow=sh;o.receiveShadow=true;p.add(o);return o}
+function cyl(r,h,c,x=0,y=0,z=0,p=scene,s=24){const o=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,s),typeof c==='string'?m(c):c);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;p.add(o);return o}
+function flat(w,d,c,x,z,y=.02){const o=new THREE.Mesh(new THREE.PlaneGeometry(w,d),m(c,{roughness:.95}));o.rotation.x=-Math.PI/2;o.position.set(x,y,z);o.receiveShadow=true;scene.add(o);return o}
+function el(cls,html){const e=document.createElement('div');e.className=cls;e.innerHTML=html;return e}
+function label(e,x,y,z,p=scene){const o=new CSS2DObject(e);o.position.set(x,y,z);p.add(o);return o}
+const pickables=[];function pick(o,d){o.userData.pick=d;pickables.push(o)}
+function zone(info,x,y,z,w,h,d){pick(box(w,h,d,invisible,x,y,z,scene,false),{info})}
+function bLabel(t,x,y,z,info,minor){const e=el('bl'+(minor?' minor':''),t);if(info)e.onclick=ev=>{ev.stopPropagation();showInfo(info,true)};label(e,x,y,z)}
+function fLabel(t,x,z,info){const e=el('fl',t);if(info)e.onclick=ev=>{ev.stopPropagation();showInfo(info,true)};label(e,x,.3,z)}
+function building(x0,z0,x1,z1,{h=1.4,gaps=[],cols=10,tall=7,lights=true,floor=C.floor,wall=C.wall}={}){
+  const walls=[['n',x0,x1,z0],['s',x0,x1,z1],['w',z0,z1,x0],['e',z0,z1,x1]];
+  for(const[s,a,b,c]of walls){let cur=a;const cuts=gaps.filter(g=>g[0]===s).sort((p,q)=>p[1]-q[1]);const segs=[];
+    for(const[,g0,g1]of cuts){if(g0>cur)segs.push([cur,g0]);cur=Math.max(cur,g1)}if(cur<b)segs.push([cur,b]);
+    for(const[s0,s1]of segs){const L=s1-s0,mid=(s0+s1)/2;if(s==='n'||s==='s')box(L,h,.45,wall,mid,h/2,c);else box(.45,h,L,wall,c,h/2,mid)}}
+  flat(x1-x0,z1-z0,floor,(x0+x1)/2,(z0+z1)/2,.03);
+  if(cols){for(let x=x0;x<=x1+.01;x+=cols)for(const z of[z0,z1])box(.5,tall,.5,C.wallDark,x,tall/2,z);box(x1-x0,.5,.5,C.wallDark,(x0+x1)/2,tall,z0);box(x1-x0,.5,.5,C.wallDark,(x0+x1)/2,tall,z1)}
+  if(lights)for(let x=x0+6;x<x1-3;x+=12)for(let z=z0+6;z<z1-3;z+=12)box(3,.08,.35,m(C.light,{emissive:'#FDE68A',emissiveIntensity:.7}),x,tall-.3,z,scene,false);
+}
+function car(x,z,c,rot=0){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);box(4,1,1.8,c,0,.7,0,g);box(2.2,.8,1.6,'#CBD5E1',-.2,1.5,0,g);return g}
+function solar(x0,z0,cols,rows,y){for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){const p=box(2.6,.1,1.6,m(C.solar,{metalness:.5,roughness:.3}),x0+i*2.9,y,z0+j*2);p.rotation.x=-.25}}
+
+/* ---------- Ground, roads, rail, fence, trees ---------- */
+flat(320,230,C.grass,-5,10,-.02);
+flat(214,7,C.road,-3,-32);flat(170,7,C.road,17,30.5);flat(7,112,C.road,-52,15);flat(7,112,C.road,50,15);flat(46,26,C.road,13,48);flat(7,30,C.road,96,-45);
+for(let x=-100;x<=100;x+=12)flat(4,.25,'#FFFFFF',x,-32,.04);
+for(const dz of[-.75,.75])box(170,.18,.18,C.rail,15,.1,65+dz);
+for(let x=-68;x<=98;x+=3)flat(.5,2.6,C.dark,x,65,.03);
+{const pts=[[-112,-58],[100,-58],[100,74],[-112,74],[-112,-58]].map(([x,z])=>new THREE.Vector3(x,.8,z));scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:'#94A3B8'})))}
+for(const[x,z]of[[-106,-52],[-90,-54],[60,-54],[80,-52],[106,-20],[-108,64],[-60,70],[-108,22],[-108,-4],[88,68],[60,70],[-30,70],[-108,40],[36,-54],[-60,-54]]){
+  cyl(.3,2,C.dark,x,1,z,scene,6);const c=new THREE.Mesh(new THREE.ConeGeometry(2.4,6,10),m(C.tree));c.position.set(x,5,z);c.castShadow=true;scene.add(c)}
+
+/* ---------- Production hall ---------- */
+building(-45,-24,45,24,{gaps:[['w',-19,-13],['s',-33,-27],['e',-20,-14],['n',36,44]],cols:10,tall:15});
+bLabel('Production hall',-2,17,-25,'assembly');
+for(const z of[-8,8])for(let x=-45;x<=35;x+=10)box(.5,15,.5,C.wallDark,x,7.5,z);
+for(const z of[-24,-8,8,24])box(90,.6,.6,C.steel,0,13.6,z);
+box(88,.12,10,m(C.roof,{transparent:true,opacity:.45,roughness:.2}),0,15.3,-16,scene,false);
+for(const z of[-8,0,10])flat(88,.22,C.aisle,0,z,.05);flat(.22,46,C.aisle,40,0,.05);
+const cranes=[];
+for(const zc of[-16,0,16]){const g=new THREE.Group();g.position.set(-20,0,zc);scene.add(g);box(1.3,1.2,16,C.crane,0,14.4,0,g);box(2.4,1.4,2.4,C.crane,0,13.2,0,g);cyl(.07,6,C.dark,0,9.6,0,g,6);cranes.push({g,zc,x:-20,goal:-20})}
+// core shop
+fLabel('1 · Core cutting',-28,-9.8,'core');zone('core',-28,1.5,-16,34,3,14);
+for(const z of[-20,-13]){const r=cyl(1.5,1.6,C.steel,-42,1.6,z);r.rotation.x=Math.PI/2;box(16,1.2,2.4,C.machine,-32,.6,z);box(2,2.2,2.6,C.dark,-27,1.1,z);for(let i=0;i<3;i++)box(3,.25,1.4,C.steel,-22.5,.3+i*.28,z)}
+for(const id of['CL-1','CL-2']){const r=RES[id];box(7,.9,3.2,C.machine,r.x,.45,r.z)}
+// insulation shop
+fLabel('Insulation parts',18,-9.8,'insul');zone('insul',18,1.5,-16,30,3,14);
+for(const x of[6,14,22,30]){box(4,1.6,3,C.machine,x,.8,-19);box(1,.6,2.4,C.dark,x,1.9,-19)}
+for(const x of[8,16,24])for(let i=0;i<5;i++)box(4,.18,3,'#D6C29A',x,.1+i*.2,-12);
+// clean room
+const glass=new THREE.MeshStandardMaterial({color:C.glass,transparent:true,opacity:.22,roughness:.1,depthWrite:false});
+{const r=new THREE.Mesh(new THREE.BoxGeometry(39,7,14),glass);r.position.set(-25.5,3.5,0);scene.add(r);
+ const e=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(39,7,14)),new THREE.LineBasicMaterial({color:'#5B8FB9'}));e.position.copy(r.position);scene.add(e);
+ flat(39,14,C.clean,-25.5,0,.06);box(2.4,3,1,'#E2E8F0',-6.2,1.5,4.5);}
+fLabel('1 · Coil winding (clean room)',-25.5,-.3,'clean');zone('clean',-25.5,3.5,0,39,7,14);
+const resObj={};const ringWarn=new THREE.MeshBasicMaterial({color:'#D97706',transparent:true,opacity:.5,side:THREE.DoubleSide});
+const ringBroken=new THREE.MeshBasicMaterial({color:'#E5484D',transparent:true,opacity:.6,side:THREE.DoubleSide});
+for(const id of['WM-1','WM-2','WM-3','WM-4','WM-5','WM-6']){const r=RES[id];
+  box(4.4,1,3,C.machine,r.x,.5,r.z);box(.9,3.4,2.6,C.dark,r.x-2,2.2,r.z);box(.7,2.8,2,C.dark,r.x+2,1.9,r.z);
+  const drum=new THREE.Group();drum.position.set(r.x,2.6,r.z);scene.add(drum);const md=cyl(.25,3.4,C.steel,0,0,0,drum,12);md.rotation.z=Math.PI/2;
+  cyl(.6,.5,'#94A3B8',r.x-2.8,.25,r.z+(r.z<0?-1:1),scene,12); // conductor drum
+  const ring=new THREE.Mesh(new THREE.RingGeometry(3.1,3.6,48),ringWarn);ring.rotation.x=-Math.PI/2;ring.position.set(r.x,.15,r.z);ring.visible=false;scene.add(ring);
+  resObj[id]={drum,ring,angle:0}}
+// assembly
+fLabel('2 · Assembly',15,6.8,'assembly');zone('assembly',15,2,0,34,4,14);
+for(const id of['AS-1','AS-2','AS-3']){const r=RES[id];box(8,.3,6,C.steel,r.x,.15,r.z,scene,false);for(const dx of[-3.4,3.4])box(.4,6,.4,C.dark,r.x+dx,3,r.z-2.6);box(7.2,.4,.4,C.dark,r.x,6,r.z-2.6)}
+box(3.4,.6,3.4,C.machine,32.5,.3,-5);for(const[dx,dz]of[[-1.4,-1.4],[1.4,-1.4],[-1.4,1.4],[1.4,1.4]])box(.35,5.4,.35,C.dark,32.5+dx,3,-5+dz);box(3.4,.8,3.4,C.machine,32.5,5.6,-5);
+for(const dx of[-1.4,1.4])box(.2,.12,46,C.rail,40+dx,.12,0);const transferCar=box(4,.6,5,C.crane,40,.4,-14);
+// drying
+fLabel('3 · Drying ovens',23,23.4,'ovens');zone('ovens',23,3,17.5,25,6,8);
+for(const id of['OV-1','OV-2','OV-3']){const r=RES[id];box(6.2,6,7,C.machine,r.x,3,r.z);
+  const gm=new THREE.MeshStandardMaterial({color:C.dark,emissive:new THREE.Color('#F97316'),emissiveIntensity:0});box(5,5,.25,gm,r.x,2.8,r.z-3.62);
+  box(1.4,1.6,1.4,C.steel,r.x+1.8,6.8,r.z+1.5);cyl(.3,4,C.steel,r.x-2,8,r.z+2,scene,10);resObj[id]={gm}}
+box(6,3,4,C.machine,23,1.5,29);cyl(1.2,4,C.tank,28,2,29);cyl(.4,7,C.steel,19,3.5,29,scene,10);
+// tanking
+fLabel('4 · Tank & oil',-10.5,23.4,'tanking');zone('tanking',-10.5,2,16,18,4,8);
+for(const id of['TK-1','TK-2']){const r=RES[id];box(7,.4,6,C.steel,r.x,.2,r.z,scene,false)}
+box(5,2.2,3,C.machine,-27,1.1,20.5);cyl(.9,3,C.tank,-29.5,1.5,17.5);box(30,.25,.25,'#94A3B8',-14,2.6,22.8);
+flat(5,4,'#FDE68A',RES.H1.x,RES.H1.z,.05);flat(5,4,'#FDE68A',RES.H2.x,RES.H2.z,.05);zone('hold',3,1,20.5,12,2,6);
+fLabel('Fit-out',-39,23.4,'packing');for(let i=0;i<4;i++)box(1.2,3.4,1.2,C.steel,-42+i*2.2,1.7,13);
+// roof solar strip on the hall's glazed north bay
+solar(-42,-21,28,1,15.5);
+
+/* ---------- HV test lab ---------- */
+building(-48,36,-18,62,{gaps:[['n',-33,-27]],cols:0,lights:false,wall:'#334155'});
+bLabel('5 · High-voltage test lab',-33,15,35,'testlab');zone('testlab',-33,6,49,30,12,26);
+for(let x=-46;x<=-20;x+=2.6)for(const z of[38,60])box(.12,13,.12,C.steel,x,6.5,z,scene,false);
+for(let z=38;z<=60;z+=2.75)for(const x of[-46,-20])box(.12,13,.12,C.steel,x,6.5,z,scene,false);
+box(26,.12,22,m(C.steel,{transparent:true,opacity:.25}),-33,13,49,scene,false);
+const cageMat=new THREE.LineBasicMaterial({color:'#334155'});
+{const c=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(12,9,11)),cageMat);c.position.set(-36,4.5,49);scene.add(c)}
+for(let x=-42;x<=-30;x+=1.5){box(.1,1.1,.1,'#E5484D',x,.55,42.6,scene,false)}box(12,.08,.08,'#E5484D',-36,1,42.6,scene,false);
+const beaconM=new THREE.MeshStandardMaterial({color:'#7F1D1D',emissive:'#FF2D2D',emissiveIntensity:0});cyl(.35,.6,beaconM,-29.5,9.5,43);
+for(let i=0;i<8;i++){cyl(.85,.9,C.tank,-24,.6+i*1.25,44,scene,16);cyl(1.1,.2,C.steel,-24,1.15+i*1.25,44,scene,16)}
+{const t=new THREE.Mesh(new THREE.TorusGeometry(1.2,.35,10,24),m(C.steel));t.rotation.x=Math.PI/2;t.position.set(-24,11,44);scene.add(t)}
+zone('impulse',-24,6,44,4,12,4);label(el('fl','Impulse generator'),-24,13,44).element.onclick=()=>showInfo('impulse',true);
+for(let i=0;i<5;i++)cyl(.4,1.4,C.tank,-24,.7+i*1.45,55,scene,12);
+{const g=new THREE.Mesh(new THREE.BoxGeometry(6,3.2,5),glass);g.position.set(-43,1.6,41);scene.add(g);box(6,.1,5,C.machine,-43,3.25,41)}
+flat(4,4,'#FDE68A',RES.Q1.x,RES.Q1.z,.05);flat(4,4,'#FDE68A',RES.Q2.x,RES.Q2.z,.05);
+
+/* ---------- QC & oil lab ---------- */
+box(9,4,8,'#F8FAFC',42,2,42);box(9.1,1,8.1,glass,42,2.6,42,scene,false);box(9.4,.3,8.4,'#94A3B8',42,4.15,42);cyl(.25,2,C.steel,44,5.2,40,scene,8);
+bLabel('Quality & oil lab',42,7,42,'qclab',true);zone('qclab',42,2,42,9,4,8);
+
+/* ---------- Dispatch ---------- */
+bLabel('6 · Dispatch',13,6,35.5,'dispatch');zone('dispatch',13,1,48,44,2,24);
+for(const y of['Y1','Y2','Y3','Y4','Y5','Y6']){const r=RES[y];box(9,.6,3,C.dark,r.x,.75,r.z);for(let i=0;i<5;i++){const w=cyl(.45,3.2,C.machine,r.x-3.6+i*1.8,.45,r.z,scene,12);w.rotation.x=Math.PI/2}}
+box(16,1.2,3,C.dark,40,1.2,65);box(3,2.4,2.6,C.wall,50,1.4,65);
+
+/* ---------- Stores & receiving ---------- */
+building(-96,-24,-58,6,{gaps:[['e',-19,-13],['s',-90,-80],['w',-12,-4]],cols:9.5,tall:8});
+bLabel('Stores & receiving',-77,11,-25,'stores');zone('stores',-77,3,-9,38,6,30);
+const palette=['#C9A66B','#4F81BD','#C0504D','#9BBB59','#8064A2'];
+for(const z of[-20,-15,-10])for(let i=0;i<3;i++){box(9,5,1.4,'#F97316',-90+i*11,2.5,z);for(let k=0;k<3;k++)for(let p=0;p<3;p++)box(2.6,.8,1.2,palette[(i+k+p+Math.round(z))%5],-93+i*11+p*2.8,1+k*1.6,z)}
+for(let i=0;i<4;i++){const c=cyl(1.2,1.2,C.steel,-90+i*3.2,.6,-3);c.rotation.x=Math.PI/2}
+for(let i=0;i<3;i++){const c=cyl(1,1.4,C.copper,-90+i*3,1,2.5,scene,20);c.rotation.z=Math.PI/2}
+for(const[x,z]of[[-71,-3],[-67,-3],[-71,1]])box(4,1.1,1.6,C.crate,x,.55,z);
+const slotMat=new THREE.LineDashedMaterial({color:'#64748B',dashSize:.5,gapSize:.35});
+const slot=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(4.2,1.2,1.8)),slotMat);slot.computeLineDistances();slot.position.set(-66,.6,1.4);scene.add(slot);
+const bushCrate=box(4,1.1,1.6,C.crate,-66,.55,1.4);bushCrate.visible=false;
+{const f=new THREE.Group();f.position.set(-76,0,-4);scene.add(f);box(2.2,1.2,1.2,C.crane,0,.8,0,f);box(.2,2.6,1,C.dark,1.2,1.3,0,f);box(1.2,.1,1,C.dark,1.8,.3,0,f)}
+for(const z of[-10,-6])box(1,.2,3,'#475569',-96.6,1.1,z);
+car(-102,-8,'#F8FAFC',Math.PI/2);car(-102,-5,'#F8FAFC',Math.PI/2);
+
+/* ---------- Office, canteen, gate ---------- */
+box(22,7,14,'#E2E8F0',-84,3.5,30);for(let i=0;i<2;i++)box(22.1,1.1,14.1,glass,-84,2+i*3,30,scene,false);solar(-93,25,7,4,7.2);
+bLabel('Planning office',-84,10,22,'office');zone('office',-84,3.5,30,22,7,14);
+box(16,4,9,'#F1F5F9',-32,2,-45);box(16.2,.3,9.2,'#CBD5E1',-32,4.1,-45);solar(-38,-48,5,3,4.4);
+bLabel('Canteen',-32,7,-45,'canteen',true);zone('canteen',-32,2,-45,16,4,9);
+flat(40,12,C.road,2,-45);for(let i=0;i<12;i++)car(-14+i*3.2,-47,['#E5484D','#F8FAFC','#334155','#1F5F8B','#9AA6B2'][i%5],0);for(let i=0;i<9;i++)car(-10+i*3.2,-42.5,['#9AA6B2','#F8FAFC','#E5484D'][i%3],0);
+zone('canteen',2,1,-45,40,2,12);
+box(5,3.4,4,'#F8FAFC',90,1.7,-40);box(5.4,.3,4.4,C.wall,90,3.5,-40);box(.3,1,.3,C.dark,93,.5,-36);const barrier=box(6,.2,.2,'#E5484D',96,1,-36);
+flat(14,4,'#475569',96,-46,.05);bLabel('Main gate & weighbridge',94,6,-40,'gate',true);zone('gate',94,2,-43,14,4,12);
+
+/* ---------- Tank fabrication ---------- */
+building(56,-24,94,2,{gaps:[['w',-20,-14]],cols:9.5,tall:9,wall:'#475569'});
+bLabel('Tank fabrication & paint',75,12,-25,'tankfab');zone('tankfab',75,3,-11,38,6,26);
+for(const[x,z,c]of[[63,-17,C.primer],[73,-17,C.primer],[63,-6,C.tank]]){box(6,3.8,3.4,c,x,1.9,z);for(let i=0;i<3;i++)box(.6,4.4,.15,'#1E40AF',x-3.8,2.2,z-1.4+i*1.4)}
+const sparks=[];for(const[x,z]of[[66,-15.2],[70,-18.8],[60.5,-6]]){const s=box(.3,.3,.3,m('#FFD27F',{emissive:'#FFA500',emissiveIntensity:2}),x,2.6,z,scene,false);sparks.push(s)}
+{const pb=new THREE.Mesh(new THREE.BoxGeometry(12,5,9),glass);pb.position.set(86,2.5,-12);scene.add(pb);box(6,3.6,3.2,'#94A3B8',86,1.8,-12);label(el('fl','Paint booth'),86,5.6,-12)}
+box(8,4.6,6,'#64748B',86,2.3,-3);label(el('fl','Shot blast'),86,5.4,-3);
+for(let i=0;i<6;i++)box(5.6,.12,2,'#94A3B8',62+i*.0,.1+i*.14,-1.5);
+
+/* ---------- Dry air plant, oil farm, scrap ---------- */
+box(12,3,5,'#E2E8F0',66,1.5,8);for(const x of[61.5,63.5])cyl(.7,4.5,'#CBD5E1',x,2.25,10.8,scene,14);
+bLabel('Dry air plant',66,6,8,'dryair',true);zone('dryair',66,2,9,13,4,7);
+bLabel('Oil storage',70,11,12,'oil');zone('oil',70,3.5,24,26,7,20);
+box(26,1,.4,'#94A3B8',70,.5,14.5);box(26,1,.4,'#94A3B8',70,.5,33.5);box(.4,1,19,'#94A3B8',57,.5,24);box(.4,1,19,'#94A3B8',83,.5,24);
+const oilLevels=[];
+for(const[x,z]of[[63,19.5],[70,19.5],[77,19.5],[63,28],[70,28],[77,28]]){cyl(2.6,7,m('#E2E8F0',{transparent:true,opacity:.55}),x,3.5,z,scene,24);const lv=cyl(2.45,1,'#B88A2E',x,.5,z,scene,24);oilLevels.push(lv)}
+box(.35,.35,30,C.steel,52.5,1.6,19);box(8,.35,.35,C.steel,49,1.6,4.5);
+const tanker=new THREE.Group();tanker.position.set(87,0,24);scene.add(tanker);{const c=cyl(1.3,7,'#E2E8F0',0,1.9,0,tanker,18);c.rotation.z=Math.PI/2;box(2,2.2,2.4,C.wall,4.6,1.4,0,tanker)}tanker.visible=false;
+for(const[x,c]of[[88,'#B45309'],[92,'#64748B']]){box(3.4,1.6,2.4,c,x,.8,14);}
+bLabel('Scrap & recovery',90,5,13,'scrap',true);zone('scrap',90,1,14,8,2,4);
+bLabel('Test supply',-80,8,44,'substation',true);zone('substation',-81,4,52,24,8,12);
+for(const[x,z]of[[-86,52],[-76,52]]){box(5,4,3.5,C.tank,x,2,z);for(const dx of[-1.4,0,1.4])cyl(.15,2.4,C.steel,x+dx,5.2,z,scene,8)}
+for(const x of[-92,-70])box(.5,10,.5,C.steel,x,5,47);box(23,.5,.5,C.steel,-81,10,47);
+cyl(4,8,'#CBD5E1',-100,4,60,scene,24);cyl(4.4,.4,'#94A3B8',-100,8.2,60,scene,24);bLabel('Fire water',-100,11,60,'water',true);zone('water',-100,4,60,9,8,9);
+box(16,4,10,'#E2E8F0',67,2,47);box(16.2,.3,10.2,'#94A3B8',67,4.15,47);bLabel('Maintenance workshop',67,7,47,'workshop',true);zone('workshop',67,2,47,16,4,10);
+for(let i=0;i<4;i++)for(let j=0;j<2;j++)box(3,2,2,C.crate,84+i*3.4,1,44+j*3);bLabel('Packing & accessories',89,6,42,'packing',true);zone('packing',89,1,46,16,2,10);
+
+/* ---------- Moving trucks ---------- */
+function pathPos(pts,k,y=0){const v=pts.map(p=>p.isVector3?p.clone():new THREE.Vector3(p[0],y,p[1]));let L=0;const s=[];for(let i=1;i<v.length;i++){const d=v[i].distanceTo(v[i-1]);s.push(d);L+=d}
+  let d=k*L;for(let i=1;i<v.length;i++){if(d<=s[i-1]||i===v.length-1)return v[i-1].clone().lerp(v[i],s[i-1]?Math.min(1,d/s[i-1]):1);d-=s[i-1]}return v.at(-1)}
+const trucks=[];for(let i=0;i<4;i++){const g=new THREE.Group();scene.add(g);box(5,2.4,2.2,'#F8FAFC',0,1.5,0,g);box(1.8,2,2.2,[C.wall,'#E5484D','#15803D','#F2B705'][i],3.3,1.3,0,g);trucks.push({g,o:i/4})}
+const loop=[[96,-55],[96,-32],[50,-32],[50,30.5],[-52,30.5],[-52,-32],[96,-32],[96,-55]].map(([x,z])=>new THREE.Vector3(x,0,z));
+
+/* ================= Transformers ================= */
+const U={};
+const ringRisk=new THREE.MeshBasicMaterial({color:'#E5484D',transparent:true,opacity:.6,side:THREE.DoubleSide});
+const ringGood=new THREE.MeshBasicMaterial({color:'#15803D',transparent:true,opacity:.55,side:THREE.DoubleSide});
+const ringSel=new THREE.MeshBasicMaterial({color:'#1F5F8B',transparent:true,opacity:.5,side:THREE.DoubleSide});
+const copperM=m(C.copper,{metalness:.45,roughness:.4});
+for(const u of UNITS){
+  const g=new THREE.Group(),s=.85+u.mva/700;g.scale.setScalar(s);scene.add(g);
+  const core=new THREE.Group();g.add(core);box(4,1.6,1.4,C.dark,0,.8,0,core);box(.6,1.6,1.4,C.steel,-1.2,2.4,0,core);box(.6,1.6,1.4,C.steel,1.2,2.4,0,core);
+  const coil=new THREE.Group();coil.position.y=2.6;g.add(coil);{const c=cyl(1.05,2.2,copperM,0,0,0,coil,28);c.rotation.z=Math.PI/2}
+  const active=new THREE.Group();g.add(active);box(5.4,.45,2.4,C.dark,0,.22,0,active);for(const x of[-1.7,0,1.7])cyl(.78,2.6,copperM,x,1.75,0,active);box(5.4,.5,1.3,C.dark,0,3.3,0,active);
+  const tank=new THREE.Group();g.add(tank);box(5.6,3.6,3,C.tank,0,1.8,0,tank);for(let i=0;i<6;i++){box(.14,2.8,1.1,C.tank,-2.3+i*.92,1.7,-2,tank);box(.14,2.8,1.1,C.tank,-2.3+i*.92,1.7,2,tank)}
+  {const c=cyl(.45,3.4,C.tank,-.6,4.4,-.9,tank,16);c.rotation.z=Math.PI/2}
+  const bush=new THREE.Group();tank.add(bush);for(const x of[-1.6,0,1.6]){cyl(.17,2.2,'#B45309',x,4.7,.5,bush,10);for(let k=0;k<4;k++)cyl(.32,.08,'#B45309',x,4+k*.45,.5,bush,12)}
+  const ring=new THREE.Mesh(new THREE.RingGeometry(3.6,4.3,48),ringRisk);ring.rotation.x=-Math.PI/2;ring.position.y=.12;ring.visible=false;g.add(ring);
+  pick(box(6,5,4,invisible,0,2.4,0,g,false),{unit:u.id});
+  const chip=el('chip',`<span class="d"></span><span>${u.id}</span><span class="x"></span>`);chip.addEventListener('click',e=>{e.stopPropagation();select({unit:u.id},true)});
+  const lab=label(chip,0,6.6/s,0,g);U[u.id]={g,core,coil,active,tank,bush,ring,chip,lab,s,ang:0,cls:'',x:''};
+}
+const resPos=id=>{const r=RES[id];return new THREE.Vector3(r.x,r.y||0,r.z)};
+function routePos(f,t,k){const F=RES[f],T=RES[t];const p=pathPos([[F.x,F.z],...via(f,t),[T.x,T.z]],k);p.y=(F.y||0)+((T.y||0)-(F.y||0))*k;return p}
+const calls={};
+function callout(id,x,y,z){const e=el('callout','');const o=label(e,x,y,z);o.visible=false;calls[id]={e,o,txt:'',cls:''}}
+function setCall(id,txt,cls=''){const c=calls[id];c.o.visible=!!txt;if(!txt)return;if(c.txt!==txt){c.e.textContent=txt;c.txt=txt}const k='callout '+cls;if(c.cls!==k){c.e.className=k;c.cls=k}}
+callout('WM4',-39,6.5,7.5);callout('BUSH',-66,3.2,1.4);callout('OFFICE',-84,8.5,30);callout('BLOCK',-36,12,49);callout('LAB',-36,10.5,55);callout('OIL',70,9,24);
+const linkMat=new THREE.LineDashedMaterial({color:'#E5484D',dashSize:1.6,gapSize:1});
+const link=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),linkMat);link.visible=false;scene.add(link);
+const pulses=['T-07','WM-4','T-09'].map(to=>{const s=new THREE.Mesh(new THREE.SphereGeometry(1.1,16,12),new THREE.MeshBasicMaterial({color:'#6D4FD8'}));s.visible=false;scene.add(s);return{s,to}});
+
+/* ================= World update ================= */
+function updateWorld(t,dt,playing){
+  const occ={};
+  for(const u of UNITS){
+    const o=U[u.id],segs=actualSegs(u),loc=locate(segs,t);let vis=true,pos=null,show='active',moving=false;
+    if(loc.phase==='before')vis=false;
+    else if(loc.phase==='after'){const l=segs.at(-1);if(l[0]==='yard'){const kk=(t-l[3])/4;if(kk>1)vis=false;else{const y=RES[l[1]];pos=pathPos([[y.x,y.z],[y.x,48],[50,48],[50,-32],[96,-32],[96,-55]],ease(kk),1.1);show='yard'}}else{pos=resPos(loc.seg[1]);show=loc.seg[0]}}
+    else{const seg=loc.seg;pos=resPos(seg[1]);show=seg[0];
+      if(loc.phase==='in'){occ[seg[1]]=u;const D=Math.min(4,(seg[3]-seg[2])*.4);
+        if(loc.i>0&&t-seg[2]<D){pos=routePos(segs[loc.i-1][1],seg[1],ease((t-seg[2])/D));moving=true;if(show==='drying')show='assembly';if(show==='tanking')show='hold'}}}
+    o.g.visible=vis;o.lab.visible=vis;o.moving=moving;if(!vis)continue;o.g.position.copy(pos);
+    const md={core:'core',winding:'coil',assembly:'active',drying:'none',hold:'active',tanking:'tank',testq:'tankb',test:'tankb',yard:'tankb'}[show]||'active';
+    o.core.visible=md==='core';o.coil.visible=md==='coil';o.active.visible=md==='active';o.tank.visible=md==='tank'||md==='tankb';o.bush.visible=md==='tankb';
+    if(md==='coil'){const r=u.id==='T-11'?(wm4Broken(t)?0:wm4Slow(t)?1.2:4):4;if(playing)o.ang+=dt*r;o.coil.rotation.x=o.ang}
+    const st=status(u,t),isSel=sel&&sel.unit===u.id,important=st.cls==='risk'||st.recovered||st.stuck||isSel;
+    const cls='chip '+(st.recovered?'good':st.cls)+(important?'':' small')+(isSel?' sel':'');
+    if(o.cls!==cls){o.chip.className=cls;o.cls=cls}
+    const p=pct(u,t);const x=st.recovered?`back on track · ${p}%`:st.late?`${st.late} days late`:st.stuck?st.label:`${p}%`;
+    if(o.x!==x){o.chip.querySelector('.x').textContent=x;o.x=x}
+    o.ring.visible=st.cls==='risk'||!!st.recovered||isSel;o.ring.material=st.recovered?ringGood:st.cls==='risk'?ringRisk:ringSel;
+    if(o.ring.visible)o.ring.material.opacity=.3+.3*Math.sin(performance.now()/260);
+  }
+  for(const id of['WM-1','WM-2','WM-3','WM-4','WM-5','WM-6']){const r=resObj[id],u=occ[id];
+    const slow=id==='WM-4'&&wm4Slow(t),broken=id==='WM-4'&&wm4Broken(t),fixed=id==='WM-4'&&agentOn()&&decided('wm4',t)==='approve'&&t<WM4_BREAK+12;
+    if(u&&playing&&!broken)r.angle+=dt*(slow?1.2:4);r.drum.rotation.x=r.angle;
+    r.ring.visible=slow||broken;r.ring.material=broken?ringBroken:ringWarn;if(r.ring.visible)r.ring.material.opacity=.35+.25*Math.sin(performance.now()/300);
+    if(id==='WM-4')setCall('WM4',broken?'Winding machine 4 broke down · T-11 stopped 2 days':fixed?'✓ Inspected · worn bearing replaced':slow?'Machine 4 running slow · nobody reported it':'',broken?'risk':fixed?'ok':'warn')}
+  for(const id of['OV-1','OV-2','OV-3'])resObj[id].gm.emissiveIntensity=occ[id]?.55+.15*Math.sin(performance.now()/500):0;
+  const tb=occ['TB-1'];cageMat.color.set(tb?'#F97316':'#334155');beaconM.emissiveIntensity=tb?(Math.sin(performance.now()/180)>0?2.5:0):0;
+  setCall('LAB',tb?`Testing ${tb.id}${tb.fat?' · customer watching':''}`:'','');
+  for(const s of sparks)s.visible=Math.random()>.45;
+  const arr=bushArrive(),chased=agentOn()&&t>=AG_CHASE;
+  if(t<EV_SUPPLIER){slotMat.color.set('#64748B');setCall('BUSH',"T-07's bushings · due 13 Nov");bushCrate.visible=false;slot.visible=true}
+  else if(t<arr){slotMat.color.set(chased?'#6D4FD8':'#E5484D');slot.visible=true;bushCrate.visible=false;setCall('BUSH',chased?"T-07's bushings · customs fast-tracked · due 16 Nov":"T-07's bushings · stuck at customs · due 18 Nov",chased?'agent':'risk')}
+  else if(t<arr+8){setCall('BUSH',"T-07's bushings arrived",'ok');bushCrate.visible=true;slot.visible=false}
+  else{setCall('BUSH','');bushCrate.visible=false;slot.visible=false}
+  const o7=U['T-07'];const on=t>=EV_SUPPLIER&&t<arr&&o7.g.visible;link.visible=on;
+  if(on){linkMat.color.set(chased?'#6D4FD8':'#E5484D');const b=o7.g.position;
+    link.geometry.setFromPoints([new THREE.Vector3(-66,1.2,1.4),new THREE.Vector3(-66,1.2,-29),new THREE.Vector3(-52,1.2,-29),new THREE.Vector3(-52,1.2,30),new THREE.Vector3(-30,1.2,30),new THREE.Vector3(-30,1.2,10),new THREE.Vector3(b.x,1.2,10),new THREE.Vector3(b.x,1.2,b.z)]);link.computeLineDistances()}
+  const unread=MSGS.filter(x=>t>=x.at).length,readByAgent=agentOn()&&t>=AG_READ;
+  setCall('OFFICE',!unread?'':readByAgent?`✓ Agent read ${unread} messages`:`${unread} unread message${unread>1?'s':''} · nobody has acted`,readByAgent?'agent':(t>=EV_SUPPLIER?'risk':'warn'));
+  setCall('BLOCK',agentOn()&&t>=AG_BLOCK&&t<AG_BLOCK+30?"⛔ Agent wanted to skip T-07's heat-run test · blocked, mandatory test":'','block');
+  const stock=oilStock(t);oilLevels.forEach(l=>{const h=Math.max(.05,6.8*stock/480);l.scale.y=h;l.position.y=h/2});
+  const oilOrdered=agentOn()&&decided('oil',t)==='approve';
+  setCall('OIL',t>=OIL_OUT&&t<OIL_EMERGENCY&&!oilOrdered?`Out of oil · T-15 can't be filled · ${Math.round(stock)} kL left`:stock<120?`Oil low · ${Math.round(stock)} kL`:oilOrdered&&t<OIL_ARRIVE_AGENT?`Oil ordered · arrives ${fmtD(OIL_ARRIVE_AGENT)}`:'',t>=OIL_OUT&&t<OIL_EMERGENCY&&!oilOrdered?'risk':oilOrdered?'agent':'warn');
+  const arrive=oilOrdered?OIL_ARRIVE_AGENT:OIL_EMERGENCY;tanker.visible=t>=arrive-3&&t<arrive+3;
+  for(const p of pulses){const k=(t-AG_READ)/.04;p.s.visible=agentOn()&&k>0&&k<1;if(p.s.visible){const to=p.to==='WM-4'?resPos('WM-4'):U[p.to].g.position.clone();const pt=new THREE.Vector3(-84,8,30).lerp(to,ease(k));pt.y=8+Math.sin(k*Math.PI)*14;p.s.position.copy(pt)}}
+  for(const c of cranes){const mv=UNITS.map(u=>U[u.id]).find(o=>o.g.visible&&o.moving&&Math.abs(o.g.position.z-c.zc)<8&&Math.abs(o.g.position.x)<45);if(mv)c.goal=Math.max(-44,Math.min(34,mv.g.position.x));c.x+=(c.goal-c.x)*Math.min(1,dt*3);c.g.position.x=c.x}
+  const tr=UNITS.map(u=>U[u.id]).find(o=>o.g.visible&&o.moving&&Math.abs(o.g.position.x-40)<2);if(tr)transferCar.position.z=tr.g.position.z;
+  for(const k of trucks){const kk=((t/9)+k.o)%1;const p=pathPos(loop,kk),p2=pathPos(loop,(kk+.003)%1);k.g.position.copy(p);k.g.lookAt(p2);k.g.rotateY(-Math.PI/2)}
+  barrier.rotation.z=trucks.some(k=>k.g.position.distanceTo(new THREE.Vector3(96,0,-36))<8)?Math.PI/2.4:0;
+}
+
+/* ================= UI ================= */
+let T=58.5,playing=false,speed=6,sel={unit:'T-07'},drawer=null;
+const scrub=$('scrub');
+const pending=t=>agentOn()?DEC.find(d=>t>=d.at&&!DS[d.id]):null;
+function summary(){const a=agentOn();const t07=a?(DS.t07==='approve'?'20 Nov':'21 Nov'):'23 Nov',pen07=a?(DS.t07==='approve'?25:75):100;
+  const t11=a&&DS.wm4==='approve'?'0 days':'2 days',oil=a&&DS.oil==='approve'?'None':'T-15 waits 3 days';return{t07,pen07,t11,oil}}
+function cmpTable(){const s=summary();return`<table class="cmp"><tr><th></th><th>No agent</th><th>This run</th></tr>
+<tr><td>T-07 ships</td><td class="bad">23 Nov · ₹1.0 Cr</td><td class="${s.pen07<100?'good':'bad'}">${s.t07} · ${money(s.pen07)}</td></tr>
+<tr><td>Machine 4 downtime</td><td class="bad">2 days</td><td class="${s.t11==='0 days'?'good':'bad'}">${s.t11}</td></tr>
+<tr><td>Oil shortage</td><td class="bad">T-15 waits 3 days</td><td class="${s.oil==='None'?'good':'bad'}">${s.oil}</td></tr>
+<tr><td>Decisions you made</td><td>0</td><td>${Object.keys(DS).length} of 4</td></tr></table>`}
+function storyData(t){
+  const u=UNITS.find(x=>x.id==='T-07'),eb=agentOn()?'With AI agent':'The plant today, no agent';
+  const p=pending(t);
+  if(p){const n=DEC.indexOf(p)+1;return{eb,tag:`Decision ${n} of 4`,cls:'agent',h:p.title,p:'The agent has prepared this. Answer in the notification, bottom right.',nums:''}}
+  if(t>=H_END-1)return{eb,cls:'ok',h:agentOn()?'The 17 days are done.':'The 17 days are done.',p:agentOn()?'Same plant, same problems. Here is what your decisions changed.':'Switch to "With AI agent" to replay the same days.',nums:cmpTable()};
+  if(t<EV_SHIFTLOG)return{eb,cls:'ok',h:'17 orders in the plant, all on schedule.',p:'Press play to run the factory day by day. Click any building, machine or transformer to see what it does.',nums:''};
+  if(t<EV_SUPPLIER)return{eb,cls:'warn',h:'Winding machine 4 ran slow overnight.',p:'The night shift wrote it in the log but nobody raised a repair ticket.',nums:''};
+  if(!agentOn()){
+    if(t>=OIL_OUT&&t<OIL_EMERGENCY)return{eb,cls:'risk',h:'The plant ran out of transformer oil.',p:'T-15 is dried and ready but cannot be filled. The stock report warned on 13 Nov; nobody ordered. Emergency oil arrives 23 Nov.',nums:''};
+    if(t>=WM4_BREAK&&t<WM4_FIXED)return{eb,cls:'risk',h:'Winding machine 4 broke down.',p:'The noise logged on 11 Nov was a failing bearing. T-11 loses 2 days while it is repaired.',nums:''};
+    if(!isShipped(u,t))return{eb,cls:'risk',h:`T-07 will ship ${lateDays(u,t)} days late.`,p:'Its bushings are stuck at customs. The messages that explain the problem and a way out are still unread.',
+      nums:`<div class="nums"><div><b>${money(lateDays(u,t)*25)}</b><small>late penalty</small></div><div><b>${fmtDur(t-EV_SUPPLIER)}</b><small>since the warning, no plan</small></div></div>`};
+    return{eb,cls:'risk',h:'T-07 shipped 4 days late, ₹1 crore penalty.',p:'Keep playing to see the rest of the fortnight.',nums:''};
+  }
+  if(t<AG_READ)return{eb,cls:'agent',h:'Supplier warning received.',p:'The agent is reading it.',nums:''};
+  if(t>=OIL_OUT&&t<OIL_EMERGENCY&&DS.oil!=='approve')return{eb,cls:'risk',h:'Out of oil. T-15 waits.',p:'You chose not to order on 13 Nov. Emergency oil arrives 23 Nov.',nums:''};
+  if(t>=WM4_BREAK&&t<WM4_FIXED&&DS.wm4!=='approve')return{eb,cls:'risk',h:'Machine 4 broke down.',p:'You kept it running on 11 Nov. T-11 loses 2 days.',nums:''};
+  const done=Object.keys(DS).length;
+  const s=summary();
+  return{eb,tag:`${done} of 4 decisions`,cls:s.pen07<100?'ok':'warn',h:DS.t07==='approve'?`T-07 back on track. Ships ${s.t07}.`:`T-07 ships ${s.t07}.`,p:'The agent keeps working in the background. Open the Agent tab to see everything it did.',
+    nums:`<div class="nums"><div><b>${money(s.pen07)}</b><small>T-07 penalty, was ₹1 Cr</small></div><div><b>${17-UNITS.filter(x=>isShipped(x,t)).length}</b><small>orders still in the plant</small></div></div>`};
+}
+let lastStory='';
+function renderStory(t){const s=storyData(t);const html=`<div class="eyebrow"><span>${s.eb}</span>${s.tag?`<span>${s.tag}</span>`:''}</div><h2>${s.h}</h2><p>${s.p}</p>${s.nums}`;
+  const c='ov story '+s.cls;if($('story').className!==c)$('story').className=c;if(html!==lastStory){$('story').innerHTML=html;lastStory=html}}
+let lastCard='';
+function renderCard(t){
+  const card=$('card');if(!sel){card.hidden=true;lastCard='';return}card.hidden=false;let h;
+  if(sel.unit){
+    const u=UNITS.find(x=>x.id===sel.unit),segs=knownSegs(u,t),st=status(u,t),p=pct(u,t);
+    const cur=st.key in SIDX?SIDX[st.key]:(st.key==='shipped'?6:-1),first=SIDX[segs[0][0]];
+    h=`<div class="h"><b>${u.id} · ${u.cust}</b><span>${u.mva} MVA, ${u.kv} kV · promised ${fmtD(u.planned)}</span>`;
+    if(st.recovered)h+=`<span class="tag ok">Ships ${fmtD(projected(u,t))}</span>`;else if(st.late)h+=`<span class="tag risk">Now ${fmtD(projected(u,t))} · ${st.late} days late</span>`;
+    else if(st.stuck)h+=`<span class="tag warn">${st.label}</span>`;else if(st.key==='shipped')h+=`<span class="tag">Shipped</span>`;else if(st.key!=='before')h+=`<span class="tag ok">On schedule</span>`;
+    h+=`<button class="x" data-close aria-label="Close">×</button></div><div class="pbar"><div><i style="width:${p}%"></i></div><b>${p}% built</b></div><div class="steps">`;
+    STEPS.forEach(([k,n],i)=>{const seg=k==='core'?(segs.find(s=>s[0]==='winding')||segs.find(s=>s[0]==='core')):segs.find(s=>s[0]===k);let c='',sub='';const bad=st.late&&!st.recovered?' risk':'';
+      if(i<first){c='done';sub='done'}else if(i<cur){c='done';sub=seg?fmtD(seg[3]):''}else if(i===cur){c='cur'+bad;sub=seg?`until ${fmtD(seg[3])}`:''}
+      else if(i===Math.ceil(cur)&&cur%1){c='cur'+bad;sub=seg?`waiting · ${fmtD(seg[2])}`:''}else sub=seg?fmtD(seg[2]):'';
+      h+=`<div class="step ${c}"><i></i><b>${n}</b><small>${sub}</small></div>`});
+    h+='</div>';
+  }else{
+    const I=INFO[sel.info];const live=I.live(t);
+    h=`<div class="h info"><b>${I.n}</b><button class="x" data-close aria-label="Close">×</button></div><div class="info"><p>${I.d}</p></div>
+     <div class="facts">${I.f.map(([a,b])=>`<div><small>${a}</small><span>${b}</span></div>`).join('')}</div>
+     ${live.length?`<div class="now"><b>Right now · ${fmtDT(t)}</b>${live.map(([x,c])=>`<span class="${c}">${x}</span>`).join('')}</div>`:''}
+     <div class="note">Typical values for a large power transformer works. Synthetic data.</div>`;
+  }
+  if(h!==lastCard){card.innerHTML=h;lastCard=h;card.querySelector('[data-close]').onclick=()=>select(null)}
+}
+let lastDrawer='';
+function renderDrawer(t){
+  const d=$('drawer');document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.d===drawer)));
+  if(!drawer){d.hidden=true;lastDrawer='';return}d.hidden=false;let h='';
+  if(drawer==='units'){const live=UNITS.filter(u=>!isShipped(u,t));h=`<h3><span>Orders in the plant</span><span>${live.length} active</span></h3><ul class="list">`;
+    for(const u of UNITS.slice().sort((a,b)=>a.planned-b.planned)){const st=status(u,t),p=pct(u,t);const tc=st.recovered?'ok':st.cls==='risk'?'risk':st.cls==='warn'?'warn':st.cls==='ok'?'ok':'';
+      const note=st.recovered?`ships ${fmtD(projected(u,t))}`:st.late?`${st.late} days late`:st.key==='shipped'?'':`promised ${fmtD(u.planned)}`;
+      h+=`<li class="row${sel&&sel.unit===u.id?' sel':''}" data-u="${u.id}"><b>${u.id}</b><span class="tag ${tc}">${st.label}</span><span class="pc">${p}%</span><span class="bar"><i style="width:${p}%"></i></span><span class="c">${u.cust} · ${u.mva} MVA${note?' · '+note:''}</span></li>`}
+    h+='</ul>'}
+  if(drawer==='inbox'){const ms=MSGS.filter(x=>t>=x.at).sort((a,b)=>b.at-a.at);h='<h3>Planning inbox</h3><ul class="list">';
+    if(!ms.length)h+='<li class="empty">No messages yet.</li>';
+    for(const x of ms){const r=agentOn()&&t>=(x.id==='m4'?101:AG_READ);h+=`<li class="msg" data-u="${x.about}"><div class="t"><span>${fmtDT(x.at)}</span><span>About ${x.about}</span></div><div class="f">${x.from} · ${x.subj}</div><div class="b">${x.body}</div><div class="s ${r?'read':''}">${r?'✓ Read by the agent':`● Unread for ${fmtDur(t-x.at)}`}</div></li>`}
+    h+='</ul>'}
+  if(drawer==='agent'){
+    const items=[...AUTO.filter(a=>t>=a.at).map(a=>({at:a.at,k:a.k,text:a.text}))];
+    for(const dd of DEC){if(t>=dd.at)items.push({at:dd.at,k:'ask',text:dd.title});if(DS[dd.id]&&t>=decideAt(dd.id))items.push({at:decideAt(dd.id),k:DS[dd.id]==='approve'?'done':'no',text:`You chose: ${DS[dd.id]==='approve'?dd.yes:dd.no}`})}
+    items.sort((a,b)=>b.at-a.at);const K={read:'Read',auto:'Did it',blocked:'Blocked',ask:'Asked you',done:'Approved',no:'Declined'};
+    h=`<h3><span>What the agent did</span><span>${items.length}</span></h3><ul class="list feed">${items.length?items.map(a=>`<li><span class="k ${a.k}">${K[a.k]}</span><span>${a.text}</span><span class="tm">${fmtDT(a.at)}</span></li>`).join(''):'<li class="empty" style="display:block">Nothing yet. The agent starts when a problem appears.</li>'}</ul>
+    <h3>Rules the agent follows</h3><div class="rules"><div><b style="color:var(--ok)">Does it alone, then reports</b><span>Supplier follow-ups, reordering queues, booking cranes, moving crews.</span></div>
+    <div><b style="color:#92400E">Asks a person first</b><span>Overtime above ₹2 L, taking a machine offline, purchases above ₹50 L, anything sent to a customer.</span></div>
+    <div><b style="color:var(--risk)">Never allowed</b><span>Skipping or shortening a test, ending drying early, shipping a unit that failed a test.</span></div></div>`}
+  if(h!==lastDrawer){d.innerHTML=h;lastDrawer=h;d.querySelectorAll('[data-u]').forEach(e=>e.onclick=()=>select({unit:e.dataset.u},true))}
+}
+let lastToast='';
+function renderChrome(t){
+  $('clockT').textContent=fmtDT(t);$('tnow').textContent=fmtDT(t);$('clock').classList.toggle('on',playing);
+  const unread=MSGS.filter(x=>t>=x.at).length,read=agentOn()&&t>=AG_READ;$('inboxBadge').hidden=!unread||read;$('inboxBadge').textContent=unread;
+  const risk=UNITS.filter(u=>{const s=status(u,t);return s.cls==='risk'||s.stuck}).length;$('riskBadge').hidden=!risk;$('riskBadge').textContent=risk;
+  $('agentTab').hidden=!agentOn();const n=AUTO.filter(a=>t>=a.at).length+DEC.filter(d=>t>=d.at).length;$('agentBadge').hidden=!n;$('agentBadge').textContent=n;
+  const p=pending(t);$('toast').hidden=!p;
+  if(p&&lastToast!==p.id+JSON.stringify(DS)){lastToast=p.id+JSON.stringify(DS);$('toastN').textContent=`Decision ${DEC.indexOf(p)+1} of 4`;$('toastT').textContent=p.title;$('toastB').innerHTML=p.body();$('approve').textContent=p.yes;$('reject').textContent=p.no}
+}
+let lastPanels=0;
+function refresh(force){const now=performance.now();if(!force&&now-lastPanels<150)return;lastPanels=now;renderStory(T);renderCard(T);renderDrawer(T);renderChrome(T)}
+function buildPins(){const p=$('pins');p.innerHTML='';
+  const add=(h,c,title,unit)=>{const b=document.createElement('button');b.style.left=(h/H_END*100)+'%';b.style.background=c;b.title=`${fmtDT(h)} · ${title}`;b.setAttribute('aria-label',b.title);b.onclick=()=>{playing=false;syncPlay();setT(h+.01);if(unit)select(unit,true)};p.appendChild(b)};
+  add(EV_SHIFTLOG,'#D97706','Machine 4 runs slow',{info:'clean'});add(EV_SUPPLIER,'#E5484D','Bushings delayed',{unit:'T-07'});
+  if(agentOn())for(const d of DEC)add(d.at,'#6D4FD8',`Decision: ${d.title}`);
+  else{add(WM4_BREAK,'#E5484D','Machine 4 breaks down',{unit:'T-11'});add(OIL_OUT,'#E5484D','Oil runs out',{info:'oil'})}
+  add(finalSegs('T-07').at(-1)[3],agentOn()&&DS.t07==='approve'?'#15803D':'#E5484D','T-07 ships',{unit:'T-07'});}
+
+/* ================= Interaction ================= */
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let fly=null,camGoal=null;
+function flyTo(k){const v=VIEWS[k];$('view').value=k;const p=new THREE.Vector3(...v.p),tg=new THREE.Vector3(...v.t);if(reduce){camera.position.copy(p);controls.target.copy(tg);return}camGoal=null;fly={p0:camera.position.clone(),t0:controls.target.clone(),p1:p,t1:tg,k:0}}
+for(const[k,v]of Object.entries(VIEWS)){const o=document.createElement('option');o.value=k;o.textContent=v.n;$('view').appendChild(o)}
+$('view').onchange=e=>flyTo(e.target.value);
+function select(s,focus){sel=s;if(s&&s.unit&&focus){const o=U[s.unit];if(o.g.visible){const p=o.g.position.clone();p.y=0;if(reduce)controls.target.copy(p);else{fly=null;camGoal=p}}}refresh(true)}
+function showInfo(id,focus){select({info:id},false)}
+function setT(h){T=Math.max(0,Math.min(H_END,h));scrub.value=T;refresh(true)}
+scrub.oninput=()=>{T=+scrub.value;refresh(true)};
+$('speed').onchange=e=>speed=+e.target.value;
+function syncPlay(){$('playIcon').innerHTML=playing?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M3 2l11 6-11 6z"/>';$('play').setAttribute('aria-label',playing?'Pause':'Play')}
+$('play').onclick=()=>{if(!playing&&T>=H_END)T=0;playing=!playing;syncPlay();refresh(true)};
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{MODE=b.dataset.m;DS={};lastToast='';document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  if(agentOn()){T=EV_SUPPLIER-.05;scrub.value=T;playing=true;syncPlay();drawer='agent';sel={unit:'T-07'};flyTo('overview')}else if(drawer==='agent')drawer=null;
+  buildPins();refresh(true)});
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{drawer=drawer===b.dataset.d?null:b.dataset.d;refresh(true)});
+function decide(choice){const p=pending(T);if(!p)return;DS[p.id]=choice;T=Math.max(T,decideAt(p.id));scrub.value=T;playing=true;syncPlay();buildPins();
+  if(p.id==='wm4')select({info:'clean'});else if(p.id==='oil')select({info:'oil'});else select({unit:'T-07'},true)}
+$('approve').onclick=()=>decide('approve');$('reject').onclick=()=>decide('reject');
+
+const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();let down=null;
+const setPtr=e=>{const r=renderer.domElement.getBoundingClientRect();ptr.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(ptr,camera)};
+const visPicks=()=>pickables.filter(o=>{let p=o;while(p){if(!p.visible)return false;p=p.parent}return true});
+function hitOf(){const hs=ray.intersectObjects(visPicks(),false);return hs.find(h=>h.object.userData.pick.unit)||hs[0]}
+renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];fly=null});
+renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;setPtr(e);const h=hitOf();select(h?h.object.userData.pick:null,!!(h&&h.object.userData.pick.unit))});
+renderer.domElement.addEventListener('pointermove',e=>{setPtr(e);renderer.domElement.style.cursor=hitOf()?'pointer':'grab'});
+function resize(){const w=host.clientWidth||innerWidth,h=host.clientHeight||innerHeight;renderer.setSize(w,h);labelR.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()}
+new ResizeObserver(resize).observe(host);resize();
+
+const clock=new THREE.Clock();
+function frame(){
+  const dt=Math.min(clock.getDelta(),.1);
+  if(playing){
+    let s=speed;if(agentOn()&&T>=EV_SUPPLIER-.1&&T<57.7)s=Math.min(s,.05);
+    const nextAsk=agentOn()?DEC.find(d=>!DS[d.id]):null;
+    T+=s*dt;
+    if(nextAsk&&T>=nextAsk.at){T=nextAsk.at;playing=false;syncPlay();if(nextAsk.id==='oil')select({info:'oil'});else if(nextAsk.id==='wm4')select({info:'clean'})}
+    if(T>=H_END){T=H_END;playing=false;syncPlay()}
+    scrub.value=T;
+  }
+  if(fly){fly.k=Math.min(1,fly.k+dt/1.1);const e=ease(fly.k);camera.position.lerpVectors(fly.p0,fly.p1,e);controls.target.lerpVectors(fly.t0,fly.t1,e);if(fly.k>=1)fly=null}
+  if(camGoal){controls.target.lerp(camGoal,.08);if(controls.target.distanceTo(camGoal)<.2)camGoal=null}
+  controls.update();labelHost.classList.toggle('far',camera.position.distanceTo(controls.target)>150);
+  updateWorld(T,dt,playing);refresh(false);renderer.render(scene,camera);labelR.render(scene,camera);requestAnimationFrame(frame);
+}
+buildPins();refresh(true);frame();
+</script>
