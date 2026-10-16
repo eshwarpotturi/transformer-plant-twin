@@ -109,6 +109,10 @@ button,select{font:inherit;color:inherit}
 .step b{display:block;font-size:12px}
 .step small{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .step.cur.risk small{color:var(--risk);font-weight:600}
+.tchart{margin-top:12px;display:grid;grid-template-columns:auto 1fr auto;gap:5px 10px;align-items:center;font-size:12px}
+.tchart h5{grid-column:1/4;margin:0 0 2px;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tchart .bt{height:12px;border-radius:3px;background:var(--brand)} .tchart .bt.wait{background:var(--warn)} .tchart .bt.cur{background:repeating-linear-gradient(45deg,var(--brand),var(--brand) 4px,#5B8FB9 4px,#5B8FB9 8px)}
+.tchart .v{font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap}
 .info p{margin:6px 0 0;color:var(--ink-2);line-height:1.5}
 .facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 16px;margin-top:10px}
 .facts div small{display:block;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em}
@@ -810,6 +814,9 @@ function renderCard(t){
       else if(i===Math.ceil(cur)&&cur%1){c='cur'+bad;sub=seg?`waiting · ${fmtD(seg[2])}`:''}else sub=seg?fmtD(seg[2]):'';
       h+=`<div class="step ${c}"><i></i><b>${n}</b><small>${sub}</small></div>`});
     h+='</div>';
+    const rows=segs.filter(g=>g[3]>0),mx=Math.max(...rows.map(g=>g[3]-Math.max(0,g[2])));
+    h+=`<div class="tchart"><h5>Time per step in this window (hours)</h5>`+rows.map(g=>{const d=g[3]-Math.max(0,g[2]);const w=g[0]==='hold'||g[0]==='testq';const cur=t>=g[2]&&t<g[3];
+      return`<span>${w?(g[0]==='hold'?'Waiting':'Waiting for test'):STAGE[g[0]]}</span><div class="bt${w?' wait':cur?' cur':''}" style="width:${Math.max(3,d/mx*100)}%"></div><span class="v">${Math.round(d)} h${t<g[2]?' · planned':cur?' · now':''}</span>`}).join('')+`</div>`;
   }else{
     const I=INFO[sel.info];const live=I.live(t);
     h=`<div class="h info"><b>${I.n}</b><button class="x" data-close aria-label="Close">×</button></div><div class="info"><p>${I.d}</p></div>
@@ -912,6 +919,10 @@ function frame(){
 const TOUR=[
  {t:'A transformer plant with many orders in progress',p:'Each label is one customer order, with how much of it is built. Orders move from core and coils, through drying and oil, to the high-voltage test lab and out of the gate.',
   go(){setMode('base');playing=false;syncPlay();setT(30);sel=null;drawer='units';flyTo('overview')}},
+ {t:'Every building and step has its own data',p:'Click any building, machine or step to see what happens there, its capacity, how long it takes, and what it is doing right now. This is the tank shop; the same detail exists for every sub-process on site.',
+  go(){setMode('base');playing=false;syncPlay();setT(58.5);sel={info:'tankfab'};drawer=null;flyTo('tankfab')}},
+ {t:'Every order has a full timeline',p:'For each order you can see how far it is built and how many hours each step took or is planned to take. Amber bars are time spent waiting. The same breakdown is available for every order in the plant.',
+  go(){setMode('base');playing=false;syncPlay();setT(150);sel={unit:'T-09'};drawer='units';flyTo('overview')}},
  {t:'Warning signs arrive, and nobody connects them',p:'A machine runs slow overnight. A supplier emails that T-07\'s bushings are stuck at customs. A customer offers flexibility. The messages sit unread in the planning inbox.',
   go(){setMode('base');playing=false;syncPlay();setT(EV_CUSTOMER+.2);sel={unit:'T-07'};drawer='inbox';flyTo('overview')}},
  {t:'Two weeks later, the cost of not acting',p:'T-07 will ship 4 days late with a ₹1 crore penalty. Winding machine 4 broke down and cost T-11 two days. Oil ran out and T-15 is stuck. Every one of these was visible earlier.',
