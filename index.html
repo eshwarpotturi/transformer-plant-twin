@@ -126,7 +126,7 @@ button,select{font:inherit;color:inherit}
 .time{left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:14px;background:var(--card);border-radius:14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;padding:8px 12px;flex-wrap:wrap}
 .play{width:38px;height:38px;border-radius:50%;border:0;background:var(--brand);color:#fff;display:grid;place-items:center;cursor:pointer;flex:none}
 .play svg{width:14px;height:14px;fill:currentColor}
-.tnow{font-weight:600;width:130px;font-variant-numeric:tabular-nums;flex:none}
+.tnow{font-weight:600;width:200px;font-variant-numeric:tabular-nums;flex:none}
 .track{flex:1;min-width:200px;position:relative;padding-top:14px}
 .track input{width:100%;accent-color:var(--brand);margin:0}
 .pins{position:absolute;left:0;right:0;top:0;height:12px}
@@ -220,6 +220,7 @@ button,select{font:inherit;color:inherit}
   </section>
   <section class="ov time">
     <button class="play" id="play" aria-label="Play"><svg viewBox="0 0 16 16" id="playIcon"><path d="M3 2l11 6-11 6z"/></svg></button>
+    <button class="speed" id="reset" title="Start over: 9 Nov, no agent, nothing decided">↺ Reset</button>
     <div class="tnow" id="tnow">Wed 11 Nov 10:30</div>
     <div class="track"><div class="pins" id="pins"></div><input type="range" id="scrub" min="0" max="408" step="0.05" value="58.5" aria-label="Time"></div>
     <select id="speed" class="speed" aria-label="Playback speed"><option value="1">1 hour / sec</option><option value="6">6 hours / sec</option><option value="18" selected>0.75 day / sec</option><option value="24">1 day / sec</option></select>
@@ -865,7 +866,7 @@ function renderDrawer(t){
 }
 let lastToast='';
 function renderChrome(t){
-  $('clockT').textContent=fmtDT(t);$('tnow').textContent=fmtDT(t);$('clock').classList.toggle('on',playing);
+  $('clockT').textContent=fmtDT(t);$('tnow').textContent=`Day ${Math.min(17,Math.floor(t/24)+1)} of 17 · ${fmtDT(t)}`;$('clock').classList.toggle('on',playing);
   const unread=MSGS.filter(x=>t>=x.at).length,read=agentOn()&&t>=AG_READ;$('inboxBadge').hidden=!unread||read;$('inboxBadge').textContent=unread;
   const risk=UNITS.filter(u=>{const s=status(u,t);return s.cls==='risk'||s.stuck}).length;$('riskBadge').hidden=!risk;$('riskBadge').textContent=risk;
   $('agentTab').hidden=!agentOn();const n=AUTO.filter(a=>t>=a.at).length+DEC.filter(d=>t>=d.at).length;$('agentBadge').hidden=!n;$('agentBadge').textContent=n;
@@ -965,6 +966,7 @@ function showStep(i){tourI=i;const s=TOUR[i];document.querySelector('.app').clas
 function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait){const n=Object.keys(DS).length;$('tourHint').textContent=`${n} of 4 decided`;$('tourNext').disabled=n<4}else{$('tourHint').textContent='';$('tourNext').disabled=false}}
 function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring')}
 $('tourBtn').onclick=()=>showStep(0);
+$('reset').onclick=()=>{endTour();playing=false;syncPlay();setMode('base');$('autos').innerHTML='';lastAutoT=0;sel=null;drawer=null;setT(0);flyTo('overview')};
 $('tourNext').onclick=()=>{if(tourI<TOUR.length-1)showStep(tourI+1);else endTour()};
 $('tourBack').onclick=()=>{if(tourI>0)showStep(tourI-1)};
 $('tourExit').onclick=endTour;
