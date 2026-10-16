@@ -222,7 +222,7 @@ button,select{font:inherit;color:inherit}
     <button class="play" id="play" aria-label="Play"><svg viewBox="0 0 16 16" id="playIcon"><path d="M3 2l11 6-11 6z"/></svg></button>
     <button class="speed" id="reset" title="Start over: 9 Nov, no agent, nothing decided">↺ Reset</button>
     <div class="tnow" id="tnow">Wed 11 Nov 10:30</div>
-    <div class="track"><div class="pins" id="pins"></div><input type="range" id="scrub" min="0" max="408" step="0.05" value="58.5" aria-label="Time"></div>
+    <div class="track"><div class="pins" id="pins"></div><input type="range" id="scrub" min="0" max="408" step="0.05" value="0" aria-label="Time"></div>
     <select id="speed" class="speed" aria-label="Playback speed"><option value="1">1 hour / sec</option><option value="6">6 hours / sec</option><option value="18" selected>0.75 day / sec</option><option value="24">1 day / sec</option></select>
   </section>
 </div>
@@ -778,7 +778,7 @@ function updateWorld(t,dt,playing){
 }
 
 /* ================= UI ================= */
-let T=58.5,playing=false,speed=18,sel={unit:'T-07'},drawer=null;
+let T=0,playing=false,speed=18,sel=null,drawer=null;
 const scrub=$('scrub');
 const pending=t=>agentOn()?DEC.find(d=>t>=d.at&&!DS[d.id]):null;
 function summary(){const a=agentOn();const t07=a?(DS.t07==='approve'?'20 Nov':'21 Nov'):'23 Nov',pen07=a?(DS.t07==='approve'?25:75):100;
