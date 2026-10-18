@@ -174,6 +174,15 @@ button,select{font:inherit;color:inherit}
 .tour .st{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
 .tour h3{margin:4px 0 6px;font-size:19px;text-wrap:balance}
 .tour p{margin:0;color:var(--ink-2);line-height:1.55}
+.tour{width:min(640px,calc(100% - 32px))}
+.trace{margin-top:10px;background:#0F172A;color:#CBD5E1;border-radius:8px;padding:10px 12px;font-family:var(--font-mono);font-size:12px;line-height:1.6;min-height:24px}
+.trace:empty{display:none}
+.trace .tl{display:flex;gap:8px;animation:pop .3s ease-out}
+.trace .tl::before{content:"›";color:#A78BFA}
+.trace .hd{color:#A78BFA;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.trace .cur::after{content:"▍";color:#A78BFA;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.tour .cmp{margin-top:4px;color:#E2E8F0}.tour .cmp th{color:#94A3B8}.tour .cmp td.good{color:#4ADE80}.tour .cmp td.bad{color:#F87171}
 .tour .ctl{display:flex;align-items:center;gap:8px;margin-top:12px}
 .tour .dots{display:flex;gap:5px;flex:1}
 .tour .dots i{width:8px;height:8px;border-radius:50%;background:var(--line)} .tour .dots i.on{background:var(--brand)}
@@ -181,7 +190,9 @@ button,select{font:inherit;color:inherit}
 .tour button.next{background:var(--brand);border-color:var(--brand);color:#fff}
 .tour button:disabled{opacity:.45;cursor:not-allowed}
 .touring .story,.touring .rail,.touring .card,.touring .autos,.touring .time{display:none}
-.focus .chip:not([data-hl]),.focus .callout:not([data-hl]),.focus .bl,.focus .fl{display:none}
+.focus .chip:not([data-hl]){opacity:.35}
+.focus .callout:not([data-hl]),.focus .fl{display:none}
+.focus .bl{opacity:.55}
 .focus.showbl .bl{display:block}
 .focus .chip[data-hl],.focus .callout[data-hl]{font-size:15px;padding:7px 14px;box-shadow:0 0 0 4px rgba(245,158,11,.55),0 6px 18px rgba(15,23,42,.25)}
 .far .fl,.far .bl.minor{display:none}
@@ -203,7 +214,7 @@ button,select{font:inherit;color:inherit}
   </header>
   <main class="stage" id="stage"></main>
   <div class="labels" id="labels"></div>
-  <section class="ov tour" id="tour" hidden aria-live="polite"><div class="st"><span id="tourStep"></span><span id="tourHint"></span></div><h3 id="tourT"></h3><p id="tourP"></p>
+  <section class="ov tour" id="tour" hidden aria-live="polite"><div class="st"><span id="tourStep"></span><span id="tourHint"></span></div><h3 id="tourT"></h3><p id="tourP"></p><div class="trace" id="tourTrace"></div>
     <div class="ctl"><div class="dots" id="tourDots"></div><button id="tourExit">Exit demo</button><button id="tourBack">Back</button><button class="next" id="tourNext">Next</button></div></section>
   <section class="ov story" id="story" aria-live="polite"></section>
   <aside class="ov rail">
@@ -246,7 +257,7 @@ const WM4_BREAK=86, WM4_FIXED=134, OIL_OUT=282, OIL_EMERGENCY=354, OIL_ORDER_AT=
 
 /* Four decisions the agent brings to a person, in order */
 const DEC=[
- {id:'wm4',at:57.30,title:'Take winding machine 4 offline tonight?',yes:'Approve inspection',no:'Keep it running',
+ {id:'wm4',at:54.2,title:'Take winding machine 4 offline tonight?',yes:'Approve inspection',no:'Keep it running',
   body:()=>`<p>The night shift logged grinding on machine 4 but raised no ticket. A 4-hour inspection tonight (22:00–02:00) costs T-11 four hours and does not move its ship date. If it breaks during a shift, repair takes about 2 days.</p>`},
  {id:'t07',at:57.40,title:'Approve a night shift for T-07?',yes:'Approve',no:'Reject',
   body:()=>`<p>₹6 L overtime in the test lab. T-07 then ships <b>20 Nov</b> instead of 23 Nov, and the penalty drops from <b>₹1 Cr to ₹25 L</b>.</p>`},
@@ -926,10 +937,11 @@ const clock=new THREE.Clock();
 function frame(){
   const dt=Math.min(clock.getDelta(),.1);
   if(playing){
-    let s=speed;if(agentOn()&&T>=EV_SUPPLIER-.1&&T<57.7)s=Math.min(s,.05);
+    let s=speed;if(agentOn()&&T>=EV_SUPPLIER-.1&&T<57.7)s=Math.min(s,.05);if(tourI>=0&&tourSpeed)s=tourSpeed;
     const nextAsk=agentOn()?DEC.find(d=>!DS[d.id]):null;
     T+=s*dt;
     if(nextAsk&&T>=nextAsk.at){T=nextAsk.at;playing=false;syncPlay();if(nextAsk.id==='oil')select({info:'oil'});else if(nextAsk.id==='wm4')select({info:'clean'})}
+    if(tourI>=0&&tourStop!=null&&T>=tourStop){T=tourStop;playing=false;tourStop=null;syncPlay()}
     if(T>=H_END){T=H_END;playing=false;syncPlay()}
     scrub.value=T;
   }
@@ -952,37 +964,60 @@ function setFocus(pos,els,showBuildings){
 function flyPT(p,t){if(reduce){camera.position.set(...p);controls.target.set(...t);return}camGoal=null;fly={p0:camera.position.clone(),t0:controls.target.clone(),p1:new THREE.Vector3(...p),t1:new THREE.Vector3(...t),k:0}}
 function at07(){return[RES.H1.x,RES.H1.z]}
 function jump(h){playing=false;syncPlay();T=h;lastAutoT=h;scrub.value=T;refresh(true)}
+let tourStop=null,tourSpeed=0;
+function run(from,to,sp){T=from;lastAutoT=from;scrub.value=T;tourStop=to;tourSpeed=sp;playing=true;syncPlay();refresh(true)}
+const wmPos=()=>[RES['WM-4'].x,RES['WM-4'].z];
 const TOUR=[
- {t:'A transformer plant, one of our (synthetic) clients',p:'About 25 transformers are being built here at once. We connected an AI agent to the plant\'s schedule, machines and inbox.',
-  go(){jump(57.2);setFocus(null,[],true);flyTo('overview')}},
- {t:'Wednesday 09:10. The agent spots a 4-day backlog.',p:'Order T-07 will now ship 4 days late. The customer\'s late penalty: ₹1 crore.',
-  go(){jump(57.26);setFocus(at07(),[U['T-07'].chip]);const[x,z]=at07();flyPT([x+14,24,z+26],[x,0,z])}},
- {t:'The cause: T-07\'s parts are stuck at customs.',p:'The agent read a supplier email nobody had opened. The big connectors on top of T-07 (bushings) won\'t arrive until 18 Nov.',
-  go(){jump(57.26);setFocus([-66,1.4],[calls.BUSH.e]);flyPT([-50,22,24],[-66,0,1.4])}},
- {t:'It fixes what it is allowed to, on its own.',p:'Chasing a supplier needs no approval. The agent asked them to fast-track customs. The parts now arrive 16 Nov.',
-  go(){jump(57.28);setFocus([-66,1.4],[calls.BUSH.e]);flyPT([-50,22,24],[-66,0,1.4])}},
- {t:'It refuses an unsafe shortcut.',p:'Skipping T-07\'s final test would save a day. The rules say tests are never skipped, so the agent stops itself.',
-  go(){jump(57.372);setFocus([-36,49],[calls.BLOCK.e]);flyPT([-18,30,80],[-36,0,49])}},
- {t:'It asks a person for the one costly decision.',p:'An extra night shift in the test lab costs ₹6 L. Answer the notification in the bottom-right corner.',wait:true,
-  go(){delete DS.t07;lastToast='';jump(57.40);setFocus(at07(),[U['T-07'].chip]);const[x,z]=at07();flyPT([x+14,24,z+26],[x,0,z])}},
- {t:'',p:'',
-  go(){const ok=DS.t07==='approve';this.t=ok?'T-07 ships on 20 Nov. Penalty cut from ₹1 crore to ₹25 lakh.':'T-07 ships on 21 Nov. Penalty ₹75 lakh.';
-   this.p=ok?'Same plant, same problem. The agent found it, fixed what it could, refused a shortcut and asked once.':'Fast-tracking customs saved a day on its own. The night shift would have saved ₹50 lakh more.';
-   jump(ok?262:292);setFocus([14,54],[U['T-07'].chip]);flyPT([28,24,80],[14,0,54])}},
+ {t:'A transformer works with 25 orders in flight',p:'A synthetic client plant. Each label is a customer order and how much of it is built. We connected an AI agent to it.',
+  trace:['Connected: production schedule (ERP)','41 machines and their sensor feeds','Planning inbox, shift logs, stock reports','Policy: what it may do alone, what needs a person'],
+  go(){setFocus(null,[],true);flyTo('overview');run(28,50,7)}},
+ {t:'06:12 · It reads one line in the night-shift log',p:'Grinding on winding machine 4. Nobody raised a ticket.',wait:'wm4',
+  trace:['Shift log: "WM-4 grinding noise… reduced speed after 2am"','WM-4 speed since 02:00: 38% below normal','Same pattern came before 3 past bearing failures','Likely breakdown in 1–2 days → T-11 loses 2 days','Taking a machine offline needs a person → asking'],
+  go(){setFocus(wmPos(),[calls.WM4.e,U['T-11'].chip]);flyPT([-27,18,22],[-39,0,3.6]);run(53.8,54.2,.12)}},
+ {t:'09:10 · A 4-day backlog appears on T-07',p:'Promised to the customer for 19 Nov. The new forecast says 23 Nov.',
+  trace:['New email in inbox → re-forecast all 25 orders','T-07 forecast: 23 Nov · promised: 19 Nov','Late penalty: ₹25 L a day × 4 = ₹1 Cr','T-07 is dried and parked, waiting for parts'],
+  go(){setFocus(at07(),[U['T-07'].chip]);const[x,z]=at07();flyPT([x+14,24,z+26],[x,0,z]);run(57.12,57.26,.05)}},
+ {t:'Why? Its bushings are stuck at customs',p:'The agent traced the gap to a supplier email nobody had opened.',
+  trace:['T-07 is waiting on: 420 kV bushings','Purchase order PO 4500-1182 → ABC Insulators','Email 09:10: "held at Chennai port customs, ETA 18th"','Email adds: "may improve 1–2 days if documents cleared today"'],
+  go(){setFocus([-66,1.4],[calls.BUSH.e]);flyPT([-50,22,24],[-66,0,1.4]);run(57.26,57.26,.05)}},
+ {t:'It handles the small fix by itself',p:'Chasing a supplier is allowed without approval. The parts now arrive 16 Nov.',
+  trace:['Rule check: supplier follow-up → allowed alone','Sent the cleared customs documents to ABC Insulators','Supplier confirms arrival 16 Nov','Backlog down from 4 days to 3'],
+  go(){setFocus([-66,1.4],[calls.BUSH.e]);flyPT([-50,22,24],[-66,0,1.4]);run(57.26,57.31,.03)}},
+ {t:'It weighs the options, and rules one out',p:'Skipping a test is the fastest fix. The policy forbids it.',
+  trace:['A · skip the heat-run test: −1 day → ⛔ never allowed','B · night shift in the test lab: −2 days, ₹6 L → needs approval','C · swap test slot with T-09: no gain','Best allowed option: B'],
+  go(){setFocus([-36,49],[calls.BLOCK.e]);flyPT([-18,30,80],[-36,0,49]);run(57.37,57.372,.02)}},
+ {t:'It asks the plant head to decide',p:'Answer the notification in the bottom-right corner.',wait:'t07',
+  trace:['Overtime above ₹2 L → needs a person','Recommendation: approve the night shift','Spend ₹6 L to avoid ₹75 L of penalty'],
+  go(){setFocus(at07(),[U['T-07'].chip]);const[x,z]=at07();flyPT([x+14,24,z+26],[x,0,z]);run(57.39,57.40,.05)}},
+ {t:'It drafts the customer update, but does not send it',p:'Anything sent to a customer needs a person\'s OK.',wait:'mail',
+  trace:['Customer: Western Grid Utility','New date and reason, in plain words','Rule: messages to customers → needs a person'],
+  go(){setFocus(at07(),[U['T-07'].chip]);run(57.5,57.55,.05)}},
+ {t:'Two days later · it sees oil running out',p:'It reads the weekly stock report and does the arithmetic before anyone asks.',wait:'oil',
+  trace:['Oil in stock: 210 kL across 6 tanks','Next 5 tank fillings need about 300 kL','Supplier lead time: 5 days','Without an order: empty on 21 Nov, T-15 stuck','₹1.6 Cr purchase is above the ₹50 L limit → asking'],
+  go(){setFocus([70,24],[calls.OIL.e,U['T-15'].chip]);flyTo('oil');run(98,106,1.5)}},
+ {t:'Two weeks later · what changed',p:'Same plant, same problems. The only difference is the agent and your four decisions.',table:true,trace:[],
+  go(){setFocus(null,[],true);flyTo('overview');run(110,H_END,30)}},
 ];
+let traceTok=0;
+function typeTrace(lines){const box=$('tourTrace');box.innerHTML='';const tok=++traceTok;if(!lines.length)return;
+  box.innerHTML='<div class="hd">Agent reasoning</div>';let i=0;
+  const add=()=>{if(tok!==traceTok||i>=lines.length)return;box.querySelectorAll('.cur').forEach(e=>e.classList.remove('cur'));
+    const d=document.createElement('div');d.className='tl cur';d.textContent=lines[i++];box.appendChild(d);setTimeout(add,reduce?0:650)};add()}
 let tourI=-1;
 function showStep(i){tourI=i;const s=TOUR[i];
-  if(i===0||!agentOn()){setMode('agent');DS={wm4:'approve',mail:'approve',oil:'approve'};lastToast='';buildPins()}
+  if(i===0||!agentOn()){setMode('agent');DS={};lastToast='';buildPins()}
+  if(s.wait){delete DS[s.wait];lastToast=''}
   sel=null;drawer=null;$('autos').innerHTML='';
   document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
   s.go();
   $('tourStep').textContent=`Demo · ${i+1} of ${TOUR.length}`;$('tourT').textContent=s.t;$('tourP').textContent=s.p;
+  if(s.table){traceTok++;$('tourTrace').innerHTML='<div class="hd">Result</div>'+cmpTable()}else typeTrace(s.trace);
   $('tourDots').innerHTML=TOUR.map((_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('');
   $('tourBack').disabled=i===0;$('tourNext').textContent=i===TOUR.length-1?'Finish':'Next';tourTick()}
-function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait&&!DS.t07){$('tourHint').textContent='Waiting for your decision';$('tourNext').disabled=true}else{$('tourHint').textContent='';$('tourNext').disabled=false}
+function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait&&!DS[s.wait]){$('tourHint').textContent='Waiting for your decision';$('tourNext').disabled=true}else{$('tourHint').textContent='';$('tourNext').disabled=false}
   if(focusRing.visible){const k=1+.12*Math.sin(performance.now()/250);focusRing.scale.set(k,k,k)}}
 function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring');
-  labelHost.classList.remove('focus','showbl');focusRing.visible=false;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
+  labelHost.classList.remove('focus','showbl');focusRing.visible=false;tourStop=null;tourSpeed=0;traceTok++;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
 $('tourBtn').onclick=()=>showStep(0);
 $('reset').onclick=()=>{endTour();playing=false;syncPlay();setMode('base');$('autos').innerHTML='';lastAutoT=0;sel=null;drawer=null;setT(0);flyTo('overview')};
 $('tourNext').onclick=()=>{if(tourI<TOUR.length-1)showStep(tourI+1);else endTour()};
