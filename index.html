@@ -729,6 +729,53 @@ worker(-80,-6,null,6);worker(-72,-12,null,4,'z');worker(67,-13,null,2);worker(74
 const plates=['CL-1','CL-2'].map(id=>{const z=RES[id].z<-15?-20:-13;return{id,b:box(2.4,.15,1.3,'#CBD5E1',-38,1.3,z,scene,false)}});
 const hoists=['AS-1','AS-2','AS-3'].map(id=>{const r=RES[id];const g=new THREE.Group();g.position.set(r.x,0,r.z-2.6);scene.add(g);cyl(.05,2,C.dark,0,5,0,g,6);box(.7,.5,.5,C.crane,0,3.9,0,g);return{id,g}});
 const steam=[];for(const id of['OV-1','OV-2','OV-3'])for(let i=0;i<4;i++){const sp=new THREE.Mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshBasicMaterial({color:'#FFFFFF',transparent:true,opacity:.5}));scene.add(sp);steam.push({id,sp,o:i/4})}
+/* ---- Ambient activity across the site: carts, forklifts, roof fans, smoke, welding, oil flow, paint spray, impulse flashes, people ---- */
+const V3=THREE.Vector3;
+function mkCart(color){const g=new THREE.Group();scene.add(g);box(3.2,.5,1.9,color,0,.6,0,g);
+  for(const dx of[-1.1,1.1])for(const dz of[-.85,.85]){const w=cyl(.3,.25,C.dark,dx,.3,dz,g,10);w.rotation.x=Math.PI/2}
+  const load=box(2.3,1.1,1.5,C.crate,0,1.4,0,g);box(.3,.3,.3,m('#22C55E',{emissive:'#22C55E',emissiveIntensity:1.6}),1.5,1,0,g,false);return{g,load}}
+const CARTS=[
+ {pts:[[-64,-16],[-52,-16],[-45,-16],[-33,-16]],period:13,o:0,c:'#F2B705',load:'#94A3B8'},
+ {pts:[[-64,-14],[-52,-14],[-45,-14],[-12,-14],[-6,-8]],period:17,o:.45,c:'#F2B705',load:C.copper},
+ {pts:[[60,-17],[50,-17],[45,-17],[40,-17],[40,-6]],period:16,o:.2,c:'#F97316',load:C.primer},
+ {pts:[[-30,22],[-30,30.5],[0,30.5],[2,37]],period:15,o:.6,c:'#38BDF8',load:C.crate},
+ {pts:[[-52,24],[-52,30.5],[-66,30.5],[-74,30.5]],period:19,o:.3,c:'#A78BFA',load:'#E2E8F0'},
+].map(d=>{const c=mkCart(d.c);c.load.material=m(d.load);return{...d,...c,pts:d.pts.map(([x,z])=>new V3(x,0,z))}});
+function mkLift(){const g=new THREE.Group();scene.add(g);box(2.4,1.2,1.4,'#F97316',0,.9,0,g);box(1,1,1.2,C.dark,-.4,2,0,g);
+  box(.15,3,1.1,C.dark,1.3,1.8,0,g);const fork=new THREE.Group();g.add(fork);box(1.4,.1,1,C.dark,2,.3,0,fork);box(1.2,.8,1,C.crate,2,.75,0,fork);
+  for(const dx of[-.8,.8]){const w=cyl(.3,.25,C.dark,dx,.3,.75,g,10);w.rotation.x=Math.PI/2;const w2=cyl(.3,.25,C.dark,dx,.3,-.75,g,10);w2.rotation.x=Math.PI/2}return{g,fork}}
+const LIFTS=[
+ {a:[-92,-17.5],b:[-64,-17.5],period:11,o:0},{a:[-64,-12.5],b:[-92,-12.5],period:13,o:.5},
+ {a:[60,-11],b:[80,-11],period:12,o:.2},{a:[82,50],b:[96,50],period:10,o:.7},
+].map(d=>({...d,...mkLift()}));
+const FANS=[[-30,16,15.6],[-10,16,15.6],[10,16,15.6],[28,8,15.6],[-86,-10,8.4],[-70,-10,8.4],[66,-10,9.4],[82,-18,9.4],[-84,34,7.4]].map(([x,z,y])=>{
+  cyl(1.4,.6,'#94A3B8',x,y,z,scene,16);const b=new THREE.Group();b.position.set(x,y+.4,z);scene.add(b);for(let i=0;i<3;i++){const bl=box(2.6,.08,.45,'#334155',0,0,0,b,false);bl.rotation.y=i*Math.PI/3}return b});
+cyl(.5,10,C.steel,92,5,-21,scene,10);cyl(.5,6,C.steel,-24,3,-48,scene,10);
+const STACKS=[[19,7.5,29],[92,10.5,-21],[-24,6.5,-48],[-100,8.5,60]];
+const PUFFS=[];for(const[x,y,z]of STACKS)for(let i=0;i<5;i++){const sp=new THREE.Mesh(new THREE.SphereGeometry(.8,10,8),new THREE.MeshBasicMaterial({color:'#E2E8F0',transparent:true,opacity:.6,depthWrite:false}));scene.add(sp);PUFFS.push({sp,x,y,z,o:i/5})}
+const WELDS=[[66,2.6,-15.2],[70,2.6,-18.8],[60.5,2.6,-6]].map(([x,y,z])=>{const g=new THREE.Mesh(new THREE.SphereGeometry(.7,12,10),new THREE.MeshBasicMaterial({color:'#DBEAFE',transparent:true}));g.position.set(x,y,z);scene.add(g);return g});
+const weldLight=new THREE.PointLight('#93C5FD',0,22);weldLight.position.set(66,4,-13);scene.add(weldLight);
+const BEADS=[];const beadPath=[[52.5,34],[52.5,4.5],[45,4.5]].map(([x,z])=>new V3(x,1.6,z));
+for(let i=0;i<10;i++){const b=new THREE.Mesh(new THREE.SphereGeometry(.32,8,6),m('#D97706',{emissive:'#F59E0B',emissiveIntensity:1.2}));scene.add(b);BEADS.push({b,o:i/10})}
+const SPRAY=[];for(let i=0;i<14;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.18,6,5),new THREE.MeshBasicMaterial({color:'#93C5FD',transparent:true,opacity:.7}));scene.add(p);SPRAY.push(p)}
+const piston=box(1.2,2,1.2,C.steel,32.5,4.2,-5);
+const boltMat=new THREE.LineBasicMaterial({color:'#E0F2FE'});const bolt=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(),new V3()]),boltMat);bolt.visible=false;scene.add(bolt);
+const boltLight=new THREE.PointLight('#BAE6FD',0,40);boltLight.position.set(-30,9,46);scene.add(boltLight);
+for(const[x,z,sp,ax]of[[-32,-40,9,'x'],[0,-36,18,'x'],[24,-36,12,'x'],[-52,4,12,'z'],[50,12,10,'z'],[-16,37,8,'x'],[-80,24,4,'x'],[42,36,4,'z']])worker(x,z,null,sp,ax);
+function ambient(now,dt,occ){
+  for(const c of CARTS){const k=(now/c.period+c.o)%1,u=ease(k<.5?k*2:2-k*2);const p=pathPos(c.pts,u),q=pathPos(c.pts,Math.min(1,Math.max(0,u+(k<.5?.01:-.01))));
+    c.g.position.copy(p);if(q.distanceTo(p)>.001){c.g.lookAt(q);c.g.rotateY(-Math.PI/2)}c.load.visible=k<.5}
+  for(const l of LIFTS){const k=(now/l.period+l.o)%1,u=ease(k<.5?k*2:2-k*2);const x=l.a[0]+(l.b[0]-l.a[0])*u,z=l.a[1]+(l.b[1]-l.a[1])*u;l.g.position.set(x,0,z);
+    l.g.rotation.y=(k<.5?0:Math.PI)+Math.atan2(-(l.b[1]-l.a[1]),l.b[0]-l.a[0]);l.fork.position.y=Math.max(0,Math.sin(now*1.7+l.o*9))*2.2}
+  for(const f of FANS)f.rotation.y+=dt*5;
+  for(const p of PUFFS){const k=(now*.25+p.o)%1;p.sp.position.set(p.x+k*3,p.y+k*7,p.z+k*1.5);p.sp.scale.setScalar(.6+k*1.8);p.sp.material.opacity=.55*(1-k)}
+  let wl=0;for(const w of WELDS){const on=Math.random()>.35;w.visible=on;if(on){w.scale.setScalar(.6+Math.random()*.8);wl=1}}weldLight.intensity=wl?2+Math.random()*3:0;
+  const flow=occ['TK-1']||occ['TK-2']?1:.25;for(const b of BEADS){const k=(now*.08*flow+b.o)%1;b.b.position.copy(pathPos(beadPath,k))}
+  for(const p of SPRAY){p.position.set(84+Math.random()*1.5,1.5+Math.random()*2.5,-13.6+Math.random()*3.2);p.visible=Math.random()>.2}
+  piston.position.y=4.2-.9*Math.max(0,Math.sin(now*1.2));
+  const tb=occ['TB-1'],ph=now%4;bolt.visible=!!tb&&ph<.18;boltLight.intensity=bolt.visible?6:0;
+  if(bolt.visible){const pts=[];const a=new V3(-24,11.5,44),b=new V3(-36,4,49);for(let i=0;i<=8;i++){const v=a.clone().lerp(b,i/8);if(i&&i<8)v.add(new V3((Math.random()-.5)*1.4,(Math.random()-.5)*1.4,(Math.random()-.5)*1.4));pts.push(v)}bolt.geometry.setFromPoints(pts)}
+}
 function routePos(f,t,k){const F=RES[f],T=RES[t];const p=pathPos([[F.x,F.z],...via(f,t),[T.x,T.z]],k);p.y=(F.y||0)+((T.y||0)-(F.y||0))*k;return p}
 const calls={};
 function callout(id,x,y,z){const e=el('callout','');const o=label(e,x,y,z);o.visible=false;calls[id]={e,o,txt:'',cls:''}}
@@ -790,6 +837,7 @@ function updateWorld(t,dt,playing){
   for(const pl of plates){const on=!!occ[pl.id];pl.b.visible=on;if(on)pl.b.position.x=-40+((now*3)%16)}
   for(const h of hoists){h.g.position.y=occ[h.id]?.8*Math.sin(now*.9):0}
   for(const st of steam){const on=!!occ[st.id];st.sp.visible=on;if(on){const r=RES[st.id];const k=(now*.35+st.o)%1;st.sp.position.set(r.x-2+k*1.5,10+k*6,r.z+2);st.sp.scale.setScalar(.6+k*1.4);st.sp.material.opacity=.55*(1-k)}}
+  ambient(now,dt,occ);
   oilPipeM.emissiveIntensity=(occ['TK-1']||occ['TK-2'])?.4+.4*Math.sin(now*4):0;
   const t2=occ['TB-2'];beacon2.emissiveIntensity=t2?(Math.sin(now*11)>0?2.5:0):0;cage2.material.color.set(t2?'#F97316':'#334155');
   const busyX={'-16':['CL-1','CL-2'],'0':['AS-1','AS-2','AS-3','WM-1','WM-2','WM-3'],'16':['TK-1','TK-2','OV-1','OV-2','OV-3','TB-2']};
