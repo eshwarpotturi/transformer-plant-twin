@@ -176,6 +176,11 @@ button,select{font:inherit;color:inherit}
 .tour p{margin:0;color:var(--ink-2);line-height:1.55}
 .tour{left:max(16px,env(safe-area-inset-left,0px));transform:none;width:min(440px,calc(100% - 32px))}
 .tour .going{color:var(--muted);font-style:italic}
+.hovertip{position:fixed;z-index:30;pointer-events:none;background:var(--card);border-radius:10px;box-shadow:var(--shadow);padding:8px 12px;max-width:280px;font-size:12.5px;line-height:1.45;border-left:4px solid var(--brand)}
+.hovertip b{display:block;font-size:13.5px}
+.hovertip span{display:block;color:var(--ink-2)}
+.hovertip span.risk{color:var(--risk);font-weight:600} .hovertip span.warn{color:#92400E;font-weight:600} .hovertip span.ok{color:var(--ok)}
+.hovertip i{display:block;font-style:normal;color:var(--muted);font-size:11.5px;margin-top:3px}
 .tourtag{font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:#B45309;padding:4px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 14px rgba(15,23,42,.3)}
 .trace{margin-top:10px;background:#0F172A;color:#CBD5E1;border-radius:8px;padding:10px 12px;font-family:var(--font-mono);font-size:12px;line-height:1.6;min-height:24px}
 .trace:empty{display:none}
@@ -216,6 +221,7 @@ button,select{font:inherit;color:inherit}
   </header>
   <main class="stage" id="stage"></main>
   <div class="labels" id="labels"></div>
+  <div class="hovertip" id="hovertip" hidden></div>
   <section class="ov tour" id="tour" hidden aria-live="polite"><div class="st"><span id="tourStep"></span><span id="tourHint"></span></div><h3 id="tourT"></h3><p id="tourP"></p><div class="trace" id="tourTrace"></div>
     <div class="ctl"><div class="dots" id="tourDots"></div><button id="tourExit">Exit demo</button><button id="tourBack">Back</button><button class="next" id="tourNext">Next</button></div></section>
   <section class="ov story" id="story" aria-live="polite"></section>
@@ -926,7 +932,29 @@ const visPicks=()=>pickables.filter(o=>{let p=o;while(p){if(!p.visible)return fa
 function hitOf(){const hs=ray.intersectObjects(visPicks(),false);return hs.find(h=>h.object.userData.pick.unit)||hs[0]}
 renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];fly=null});
 renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;setPtr(e);const h=hitOf();select(h?h.object.userData.pick:null,!!(h&&h.object.userData.pick.unit))});
-renderer.domElement.addEventListener('pointermove',e=>{setPtr(e);renderer.domElement.style.cursor=hitOf()?'pointer':'grab'});
+/* Hover: highlight the part and show a two-line live summary next to the cursor */
+const hoverBox=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:'#38BDF8',transparent:true,opacity:.18,depthWrite:false}));
+hoverBox.matrixAutoUpdate=false;hoverBox.visible=false;scene.add(hoverBox);
+const hoverEdge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:'#0EA5E9'}));
+hoverEdge.matrixAutoUpdate=false;hoverEdge.visible=false;scene.add(hoverEdge);
+function hoverSummary(d){
+  if(d.unit){const u=UNITS.find(x=>x.id===d.unit),st=status(u,T);
+    return{n:`${u.id} · ${u.cust}`,lines:[[`${pct(u,T)}% built · ${st.label}`,''],st.late?[`${st.late} days late`,'risk']:[`Promised ${fmtD(u.planned)}`,'']]}}
+  const I=INFO[d.info],live=I.live(T);let lines;
+  if(live.length>2){const busy=live.filter(l=>!/free/.test(l[0])).length;const bad=live.find(l=>l[1]==='risk'||l[1]==='warn');
+    lines=[[`${busy} of ${live.length} in use`,''],bad||[busy===live.length?'Fully booked: possible bottleneck':'Running normally',busy===live.length?'warn':'ok']]}
+  else lines=live.length?live:[[`${I.f[0][0]}: ${I.f[0][1]}`,'']];
+  return{n:I.n,lines}}
+let hoverKey='';
+function setHover(h,e){const tip=$('hovertip');
+  if(!h||tourI>=0){hoverBox.visible=hoverEdge.visible=false;tip.hidden=true;hoverKey='';return}
+  const o=h.object;o.updateWorldMatrix(true,false);
+  for(const m of[hoverBox,hoverEdge]){m.matrix.copy(o.matrixWorld);m.matrix.scale(new THREE.Vector3(o.geometry.parameters.width*1.04,o.geometry.parameters.height*1.04,o.geometry.parameters.depth*1.04));m.visible=true}
+  const sm=hoverSummary(o.userData.pick);const key=sm.n+JSON.stringify(sm.lines);
+  if(key!==hoverKey){tip.innerHTML=`<b></b>${sm.lines.map(l=>`<span class="${l[1]}"></span>`).join('')}<i>Click for details</i>`;tip.querySelector('b').textContent=sm.n;tip.querySelectorAll('span').forEach((x,k)=>x.textContent=sm.lines[k][0]);hoverKey=key}
+  tip.hidden=false;tip.style.left=Math.min(innerWidth-300,e.clientX+16)+'px';tip.style.top=Math.max(64,e.clientY-10)+'px'}
+renderer.domElement.addEventListener('pointermove',e=>{setPtr(e);const h=hitOf();renderer.domElement.style.cursor=h?'pointer':'grab';setHover(h,e)});
+renderer.domElement.addEventListener('pointerleave',()=>setHover(null));
 function resize(){const w=host.clientWidth||innerWidth,h=host.clientHeight||innerHeight;renderer.setSize(w,h);labelR.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()}
 new ResizeObserver(resize).observe(host);resize();
 
@@ -970,34 +998,34 @@ let tourStop=null,tourSpeed=0;
 function run(from,to,sp){T=from;lastAutoT=from;scrub.value=T;tourStop=to;tourSpeed=sp;playing=true;syncPlay();refresh(true)}
 const wmPos=()=>[RES['WM-4'].x,RES['WM-4'].z];
 const TOUR=[
- {t:'A transformer works with 25 orders in flight',p:'A synthetic client plant. Each label is a customer order and how much of it is built. We connected an AI agent to it.',
+ {t:'A transformer works with 25 orders in flight',p:'For one of our (synthetic) clients, we connected an AI agent to their plant.',
   focus:null,area:'',hl:()=>[],run:[28,50,7],
-  trace:['Connected: production schedule (ERP)','41 machines and their sensor feeds','Planning inbox, shift logs, stock reports','Policy: what it may do alone, what needs a person']},
- {t:'06:12 · It reads one line in the night-shift log',p:'Grinding on winding machine 4. Nobody raised a ticket.',wait:'wm4',
+  trace:['Watches: schedule, 41 machines, inbox, shift logs','Follows a policy: what it may do alone, what needs a person']},
+ {t:'06:12 · Machine 4 is running slow',p:'Winding machine 4 is running slow. Nobody reported it.',wait:'wm4',
   focus:wmPos(),area:'Coil winding room · machine 4',hl:()=>[calls.WM4.e,U['T-11'].chip],run:[53.8,54.2,.12],
-  trace:['Shift log: "WM-4 grinding noise… reduced speed after 2am"','WM-4 speed since 02:00: 38% below normal','Same pattern came before 3 past bearing failures','Likely breakdown in 1–2 days → T-11 loses 2 days','Taking a machine offline needs a person → asking']},
- {t:'09:10 · A 4-day backlog appears on T-07',p:'Promised to the customer for 19 Nov. The new forecast says 23 Nov.',
+  trace:['Machine 4 running 38% slower since 02:00','Same pattern came before 3 past breakdowns','Taking a machine offline needs a person → asking']},
+ {t:'09:10 · A 4-day backlog appears on T-07',p:'Order T-07 will ship 4 days late.',
   focus:at07(),area:'Hold area · T-07',hl:()=>[U['T-07'].chip],run:[57.12,57.26,.05],
-  trace:['New email in inbox → re-forecast all 25 orders','T-07 forecast: 23 Nov · promised: 19 Nov','Late penalty: ₹25 L a day × 4 = ₹1 Cr','T-07 is dried and parked, waiting for parts']},
- {t:'Why? Its bushings are stuck at customs',p:'The agent traced the gap to a supplier email nobody had opened.',
+  trace:['T-07 forecast 23 Nov, promised 19 Nov','Penalty: ₹25 L a day × 4 = ₹1 Cr']},
+ {t:'Why? Its bushings are stuck at customs',p:'Found in a supplier email nobody had opened.',
   focus:[-66,1.4],area:'Stores · bushing shelf',hl:()=>[calls.BUSH.e],run:[57.26,57.26,.05],
-  trace:['T-07 is waiting on: 420 kV bushings','Purchase order PO 4500-1182 → ABC Insulators','Email 09:10: "held at Chennai port customs, ETA 18th"','Email adds: "may improve 1–2 days if documents cleared today"']},
- {t:'It handles the small fix by itself',p:'Chasing a supplier is allowed without approval. The parts now arrive 16 Nov.',
+  trace:['T-07 is waiting for its bushings','Supplier email: "held at Chennai customs, ETA 18th"']},
+ {t:'It handles the small fix by itself',p:'It chased the supplier. Parts now arrive 16 Nov.',
   focus:[-66,1.4],area:'Stores · bushing shelf',hl:()=>[calls.BUSH.e],run:[57.26,57.31,.03],
-  trace:['Rule check: supplier follow-up → allowed alone','Sent the cleared customs documents to ABC Insulators','Supplier confirms arrival 16 Nov','Backlog down from 4 days to 3']},
- {t:'It weighs the options, and rules one out',p:'Skipping a test is the fastest fix. The policy forbids it.',
+  trace:['Rule: chasing a supplier → allowed alone','Backlog down from 4 days to 3']},
+ {t:'It weighs the options, and rules one out',p:'Skipping a test is never allowed.',
   focus:[-36,49],area:'High-voltage test lab',hl:()=>[calls.BLOCK.e],run:[57.37,57.372,.02],
-  trace:['A · skip the heat-run test: −1 day → ⛔ never allowed','B · night shift in the test lab: −2 days, ₹6 L → needs approval','C · swap test slot with T-09: no gain','Best allowed option: B']},
+  trace:['Skip the final test: −1 day → ⛔ never allowed','Night shift in test lab: −2 days, ₹6 L → ask a person']},
  {t:'It asks the plant head to decide',p:'Answer the notification in the bottom-right corner.',wait:'t07',
   focus:at07(),area:'Hold area · T-07',hl:()=>[U['T-07'].chip],run:[57.39,57.40,.05],
-  trace:['Overtime above ₹2 L → needs a person','Recommendation: approve the night shift','Spend ₹6 L to avoid ₹75 L of penalty']},
+  trace:['Spend ₹6 L to avoid ₹75 L of penalty','Overtime above ₹2 L → needs a person']},
  {t:'It drafts the customer update, but does not send it',p:'Anything sent to a customer needs a person\'s OK.',wait:'mail',
   focus:[-84,30],area:'Planning office',hl:()=>[calls.OFFICE.e],run:[57.5,57.55,.05],
-  trace:['Customer: Western Grid Utility','New date and reason, in plain words','Rule: messages to customers → needs a person']},
- {t:'Two days later · it sees oil running out',p:'It reads the weekly stock report and does the arithmetic before anyone asks.',wait:'oil',
+  trace:['Rule: messages to customers → needs a person']},
+ {t:'Two days later · it sees oil running out',p:'Caught in the weekly stock report.',wait:'oil',
   focus:[70,24],area:'Oil storage',hl:()=>[calls.OIL.e,U['T-15'].chip],run:[98,106,1.5],
-  trace:['Oil in stock: 210 kL across 6 tanks','Next 5 tank fillings need about 300 kL','Supplier lead time: 5 days','Without an order: empty on 21 Nov, T-15 stuck','₹1.6 Cr purchase is above the ₹50 L limit → asking']},
- {t:'Two weeks later · what changed',p:'Same plant, same problems. The only difference is the agent and your four decisions.',table:true,
+  trace:['210 kL in stock, next fillings need 300 kL','Empty by 21 Nov → T-15 stuck','₹1.6 Cr order is above the ₹50 L limit → asking']},
+ {t:'Two weeks later · what changed',p:'Same plant, same problems. With the agent and your 4 decisions:',table:true,
   focus:null,area:'',hl:()=>[],run:[110,H_END,30],trace:[]},
 ];
 /* Camera: out to the whole plant, hold, then in to the part. Wide, high angle, framed right of the card. */
