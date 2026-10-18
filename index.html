@@ -810,7 +810,7 @@ function cmpTable(){const s=summary();return`<table class="cmp"><tr><th></th><th
 <tr><td>T-07 ships</td><td class="bad">23 Nov · ₹1.0 Cr</td><td class="${s.pen07<100?'good':'bad'}">${s.t07} · ${money(s.pen07)}</td></tr>
 <tr><td>Machine 4 downtime</td><td class="bad">2 days</td><td class="${s.t11==='0 days'?'good':'bad'}">${s.t11}</td></tr>
 <tr><td>Oil shortage</td><td class="bad">T-15 waits 3 days</td><td class="${s.oil==='None'?'good':'bad'}">${s.oil}</td></tr>
-<tr><td>Decisions you made</td><td>0</td><td>${Object.keys(DS).length} of 4</td></tr></table>`}
+<tr><td>Approvals asked of you</td><td>0</td><td>${Object.keys(DS).filter(k=>!PRESET.includes(k)).length} of ${4-PRESET.length}</td></tr></table>`}
 function storyData(t){
   const u=UNITS.find(x=>x.id==='T-07'),eb=agentOn()?'With AI agent':'The plant today, no agent';
   const p=pending(t);
@@ -918,7 +918,8 @@ scrub.oninput=()=>{T=+scrub.value;refresh(true)};
 $('speed').onchange=e=>speed=+e.target.value;
 function syncPlay(){$('playIcon').innerHTML=playing?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M3 2l11 6-11 6z"/>';$('play').setAttribute('aria-label',playing?'Pause':'Play')}
 $('play').onclick=()=>{if(!playing&&T>=H_END)T=0;playing=!playing;syncPlay();refresh(true)};
-function setMode(md,auto){MODE=md;DS={};lastToast='';document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.m===md)));
+let PRESET=[];
+function setMode(md,auto){MODE=md;DS={};PRESET=[];lastToast='';document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.m===md)));
   if(auto&&agentOn()){T=EV_SUPPLIER-.05;scrub.value=T;playing=true;syncPlay();drawer='agent';sel={unit:'T-07'};flyTo('overview')}else if(!agentOn()&&drawer==='agent')drawer=null;
   buildPins();refresh(true)}
 document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{endTour();setMode(b.dataset.m,true)});
@@ -1019,13 +1020,10 @@ const TOUR=[
  {t:'It asks the plant head to decide',p:'Answer the notification in the bottom-right corner.',wait:'t07',
   focus:at07(),area:'Hold area · T-07',hl:()=>[U['T-07'].chip],run:[57.39,57.40,.05],
   trace:['Spend ₹6 L to avoid ₹75 L of penalty','Overtime above ₹2 L → needs a person']},
- {t:'It drafts the customer update, but does not send it',p:'Anything sent to a customer needs a person\'s OK.',wait:'mail',
-  focus:[-84,30],area:'Planning office',hl:()=>[calls.OFFICE.e],run:[57.5,57.55,.05],
-  trace:['Rule: messages to customers → needs a person']},
- {t:'Two days later · it sees oil running out',p:'Caught in the weekly stock report.',wait:'oil',
+ {t:'Two days later · it spots oil running short',p:'It flagged it to purchasing early, so the order went in on time.',
   focus:[70,24],area:'Oil storage',hl:()=>[calls.OIL.e,U['T-15'].chip],run:[98,106,1.5],
-  trace:['210 kL in stock, next fillings need 300 kL','Empty by 21 Nov → T-15 stuck','₹1.6 Cr order is above the ₹50 L limit → asking']},
- {t:'Two weeks later · what changed',p:'Same plant, same problems. With the agent and your 4 decisions:',table:true,
+  trace:['210 kL in stock, next fillings need 300 kL','Empty by 21 Nov → T-15 would be stuck','Purchase above ₹50 L → sent to purchasing']},
+ {t:'Two weeks later · what changed',p:'Same plant, same problems. With the agent and your 2 approvals:',table:true,
   focus:null,area:'',hl:()=>[],run:[110,H_END,30],trace:[]},
 ];
 /* Camera: out to the whole plant, hold, then in to the part. Wide, high angle, framed right of the card. */
@@ -1041,7 +1039,7 @@ function typeTrace(lines){const box=$('tourTrace');box.innerHTML='';const tok=++
     const d=document.createElement('div');d.className='tl cur';d.textContent=lines[i++];box.appendChild(d);setTimeout(add,reduce?0:650)};add()}
 let tourI=-1;
 function showStep(i){tourI=i;const s=TOUR[i];
-  if(i===0||!agentOn()){setMode('agent');DS={};lastToast='';buildPins()}
+  if(i===0||!agentOn()){setMode('agent');DS={mail:'approve',oil:'approve'};PRESET=['mail','oil'];lastToast='';buildPins()}
   if(s.wait){delete DS[s.wait];lastToast=''}
   sel=null;drawer=null;document.querySelector('.app').classList.remove('showcard');$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
   document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
