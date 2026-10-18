@@ -1,5 +1,7 @@
 # Transformer Plant Twin
 
+**▶ Live demo: https://eshwarpotturi.github.io/transformer-plant-twin/**
+
 A 3D digital twin of a large power transformer factory, with an AI agent that reads plant messages, fixes small things on its own, refuses unsafe shortcuts, and asks a person before anything costly.
 
 Proof of concept for Straive's Innovation Team. **All data is synthetic.** Figures are typical industry values, not any client's.
@@ -10,7 +12,7 @@ Proof of concept for Straive's Innovation Team. **All data is synthetic.** Figur
 
 ## Guided demo
 
-Click **▶ Play demo** in the top bar for a 7-step walkthrough: the plant, the warning signs, the cost of not acting, the same days with the agent, the blocked shortcut, four live decisions, and the result. Exit at any time to explore freely.
+Click **▶ Play demo** in the top bar for an 8-step walkthrough: the plant and its orders, live details for any part, a slow machine (approval 1), a 4-day backlog, its cause and the agent's own fix, a blocked shortcut and a night-shift request (approval 2), an oil shortage caught early, and what was saved. Exit at any time to explore freely.
 
 ## What it shows
 
