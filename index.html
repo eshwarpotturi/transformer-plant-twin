@@ -196,6 +196,7 @@ button,select{font:inherit;color:inherit}
 .tour button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:600}
 .tour button.next{background:var(--brand);border-color:var(--brand);color:#fff}
 .tour button:disabled{opacity:.45;cursor:not-allowed}
+.touring.showcard .card{display:block!important}
 .touring .story,.touring .rail,.touring .card,.touring .autos,.touring .time{display:none}
 .focus .chip:not([data-hl]){opacity:.35}
 .focus .callout:not([data-hl]),.focus .fl{display:none}
@@ -1001,18 +1002,17 @@ const TOUR=[
  {t:'A transformer works with 25 orders in flight',p:'For one of our (synthetic) clients, we connected an AI agent to their plant.',
   focus:null,area:'',hl:()=>[],run:[28,50,7],
   trace:['Watches: schedule, 41 machines, inbox, shift logs','Follows a policy: what it may do alone, what needs a person']},
+ {t:'Every part of the plant has live details',p:'Click any building or machine to see its capacity, cycle time and what it is working on right now.',
+  focus:[23,17.5],area:'Drying ovens',hl:()=>[],run:[50,53.8,.9],card:'ovens',trace:[]},
  {t:'06:12 · Machine 4 is running slow',p:'Winding machine 4 is running slow. Nobody reported it.',wait:'wm4',
   focus:wmPos(),area:'Coil winding room · machine 4',hl:()=>[calls.WM4.e,U['T-11'].chip],run:[53.8,54.2,.12],
   trace:['Machine 4 running 38% slower since 02:00','Same pattern came before 3 past breakdowns','Taking a machine offline needs a person → asking']},
  {t:'09:10 · A 4-day backlog appears on T-07',p:'Order T-07 will ship 4 days late.',
   focus:at07(),area:'Hold area · T-07',hl:()=>[U['T-07'].chip],run:[57.12,57.26,.05],
   trace:['T-07 forecast 23 Nov, promised 19 Nov','Penalty: ₹25 L a day × 4 = ₹1 Cr']},
- {t:'Why? Its bushings are stuck at customs',p:'Found in a supplier email nobody had opened.',
-  focus:[-66,1.4],area:'Stores · bushing shelf',hl:()=>[calls.BUSH.e],run:[57.26,57.26,.05],
-  trace:['T-07 is waiting for its bushings','Supplier email: "held at Chennai customs, ETA 18th"']},
- {t:'It handles the small fix by itself',p:'It chased the supplier. Parts now arrive 16 Nov.',
-  focus:[-66,1.4],area:'Stores · bushing shelf',hl:()=>[calls.BUSH.e],run:[57.26,57.31,.03],
-  trace:['Rule: chasing a supplier → allowed alone','Backlog down from 4 days to 3']},
+ {t:'Why? Its parts are stuck at customs',p:'Found in an unread supplier email. Chasing a supplier needs no approval, so it does it: parts now arrive 16 Nov.',
+  focus:[-66,1.4],area:'Stores · bushing shelf',hl:()=>[calls.BUSH.e],run:[57.26,57.31,.025],
+  trace:['Supplier email: "held at Chennai customs, ETA 18th"','Rule: chasing a supplier → allowed alone','Backlog down from 4 days to 3']},
  {t:'It weighs the options, and rules one out',p:'Skipping a test is never allowed.',
   focus:[-36,49],area:'High-voltage test lab',hl:()=>[calls.BLOCK.e],run:[57.37,57.372,.02],
   trace:['Skip the final test: −1 day → ⛔ never allowed','Night shift in test lab: −2 days, ₹6 L → ask a person']},
@@ -1043,7 +1043,7 @@ let tourI=-1;
 function showStep(i){tourI=i;const s=TOUR[i];
   if(i===0||!agentOn()){setMode('agent');DS={};lastToast='';buildPins()}
   if(s.wait){delete DS[s.wait];lastToast=''}
-  sel=null;drawer=null;$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
+  sel=null;drawer=null;document.querySelector('.app').classList.remove('showcard');$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
   document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
   jump(s.run[0]);setFocus(null,[],true);tourTag.visible=false;
   $('tourStep').textContent=`Demo · ${i+1} of ${TOUR.length}`;
@@ -1054,11 +1054,13 @@ function showStep(i){tourI=i;const s=TOUR[i];
     $('tourT').className='';$('tourT').textContent=s.t;$('tourP').textContent=s.p;
     setFocus(s.focus,s.hl(),!s.focus);
     if(s.focus){tourTag.element.textContent=s.area;tourTag.position.set(s.focus[0],9,s.focus[1]);tourTag.visible=true}
+    if(s.card){sel={info:s.card};document.querySelector('.app').classList.add('showcard');refresh(true);
+      setTimeout(()=>{if(tourI!==i)return;sel=null;document.querySelector('.app').classList.remove('showcard');refresh(true)},5000)}
     if(s.table)$('tourTrace').innerHTML='<div class="hd">Result</div>'+cmpTable();else typeTrace(s.trace);
     run(...s.run)})}
 function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait&&!DS[s.wait]){$('tourHint').textContent='Waiting for your decision';$('tourNext').disabled=true}else{$('tourHint').textContent='';$('tourNext').disabled=false}
   if(focusRing.visible){const k=1+.12*Math.sin(performance.now()/250);focusRing.scale.set(k,k,k)}}
-function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring');
+function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring','showcard');
   labelHost.classList.remove('focus','showbl');focusRing.visible=false;tourTag.visible=false;fly=null;tourStop=null;tourSpeed=0;traceTok++;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
 $('tourBtn').onclick=()=>showStep(0);
 $('reset').onclick=()=>{endTour();playing=false;syncPlay();setMode('base');$('autos').innerHTML='';lastAutoT=0;sel=null;drawer=null;setT(0);flyTo('overview')};
