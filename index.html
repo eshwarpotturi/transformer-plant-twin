@@ -180,7 +180,10 @@ button,select{font:inherit;color:inherit}
 .tour button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:600}
 .tour button.next{background:var(--brand);border-color:var(--brand);color:#fff}
 .tour button:disabled{opacity:.45;cursor:not-allowed}
-.touring .story{display:none}
+.touring .story,.touring .rail,.touring .card,.touring .autos,.touring .time{display:none}
+.focus .chip:not([data-hl]),.focus .callout:not([data-hl]),.focus .bl,.focus .fl{display:none}
+.focus.showbl .bl{display:block}
+.focus .chip[data-hl],.focus .callout[data-hl]{font-size:15px;padding:7px 14px;box-shadow:0 0 0 4px rgba(245,158,11,.55),0 6px 18px rgba(15,23,42,.25)}
 .far .fl,.far .bl.minor{display:none}
 @media (max-width:760px){.story{top:auto;bottom:150px}.card{bottom:150px}.rail{top:118px}.brand span{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -245,8 +248,8 @@ const WM4_BREAK=86, WM4_FIXED=134, OIL_OUT=282, OIL_EMERGENCY=354, OIL_ORDER_AT=
 const DEC=[
  {id:'wm4',at:57.30,title:'Take winding machine 4 offline tonight?',yes:'Approve inspection',no:'Keep it running',
   body:()=>`<p>The night shift logged grinding on machine 4 but raised no ticket. A 4-hour inspection tonight (22:00–02:00) costs T-11 four hours and does not move its ship date. If it breaks during a shift, repair takes about 2 days.</p>`},
- {id:'t07',at:57.40,title:'Approve recovery plan for T-07?',yes:'Approve night shift',no:'Reject',
-  body:()=>`<p>Bushings are stuck at customs; the agent has already asked the supplier to fast-track them (now due 16 Nov). Add a night shift in the test lab, ₹6 L overtime. T-07 then ships <b>20 Nov</b> instead of 23 Nov and the penalty drops from <b>₹1 Cr to ₹25 L</b>.</p>`},
+ {id:'t07',at:57.40,title:'Approve a night shift for T-07?',yes:'Approve',no:'Reject',
+  body:()=>`<p>₹6 L overtime in the test lab. T-07 then ships <b>20 Nov</b> instead of 23 Nov, and the penalty drops from <b>₹1 Cr to ₹25 L</b>.</p>`},
  {id:'mail',at:57.55,title:'Send this update to Western Grid Utility?',yes:'Send',no:'Hold for now',
   body:()=>{const d=DS.t07==='approve'?'20 Nov':'21 Nov',w=DS.t07==='approve'?'one day':'two days';return`<p>The agent drafted the customer notice. Nothing goes out without your OK.</p><blockquote>Dear Ms Rao, the 420 kV bushings for your 315 MVA unit (T-07) were held at Chennai customs. We have fast-tracked clearance and re-planned testing. T-07 will now ship on <b>${d}</b>, ${w} after the contract date. We will confirm the test date by Friday.</blockquote>`}},
  {id:'oil',at:OIL_ORDER_AT,title:'Order transformer oil now?',yes:'Place order',no:'Wait',
@@ -900,7 +903,7 @@ function setMode(md,auto){MODE=md;DS={};lastToast='';document.querySelectorAll('
   buildPins();refresh(true)}
 document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{endTour();setMode(b.dataset.m,true)});
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{drawer=drawer===b.dataset.d?null:b.dataset.d;refresh(true)});
-function decide(choice){const p=pending(T);if(!p)return;DS[p.id]=choice;T=Math.max(T,decideAt(p.id));scrub.value=T;playing=true;syncPlay();buildPins();
+function decide(choice){const p=pending(T);if(!p)return;if(tourI>=0){DS[p.id]=choice;lastToast='';refresh(true);setTimeout(()=>{if(tourI>=0&&TOUR[tourI].wait)showStep(tourI+1)},700);return}DS[p.id]=choice;T=Math.max(T,decideAt(p.id));scrub.value=T;playing=true;syncPlay();buildPins();
   if(p.id==='wm4')select({info:'clean'});else if(p.id==='oil')select({info:'oil'});else select({unit:'T-07'},true)}
 $('approve').onclick=()=>decide('approve');$('reject').onclick=()=>decide('reject');
 
@@ -937,39 +940,54 @@ function frame(){
   controls.update();labelHost.classList.toggle('far',camera.position.distanceTo(controls.target)>150);
   updateWorld(T,dt,playing);refresh(false);renderer.render(scene,camera);labelR.render(scene,camera);requestAnimationFrame(frame);
 }
-/* ================= Guided demo ================= */
+/* ================= Guided demo: one thing per step ================= */
+const focusMat=new THREE.MeshBasicMaterial({color:'#F59E0B',transparent:true,opacity:.8,side:THREE.DoubleSide,depthTest:false});
+const focusRing=new THREE.Mesh(new THREE.RingGeometry(4.6,5.6,64),focusMat);focusRing.rotation.x=-Math.PI/2;focusRing.renderOrder=5;focusRing.visible=false;scene.add(focusRing);
+function setFocus(pos,els,showBuildings){
+  document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);
+  for(const e of els||[])e.dataset.hl='1';
+  labelHost.classList.add('focus');labelHost.classList.toggle('showbl',!!showBuildings);
+  focusRing.visible=!!pos;if(pos)focusRing.position.set(pos[0],.35,pos[1]);
+}
+function flyPT(p,t){if(reduce){camera.position.set(...p);controls.target.set(...t);return}camGoal=null;fly={p0:camera.position.clone(),t0:controls.target.clone(),p1:new THREE.Vector3(...p),t1:new THREE.Vector3(...t),k:0}}
+function at07(){return[RES.H1.x,RES.H1.z]}
+function jump(h){playing=false;syncPlay();T=h;lastAutoT=h;scrub.value=T;refresh(true)}
 const TOUR=[
- {t:'A transformer plant with many orders in progress',p:'Each label is one customer order, with how much of it is built. Orders move from core and coils, through drying and oil, to the high-voltage test lab and out of the gate.',
-  go(){setMode('base');playing=false;syncPlay();setT(30);sel=null;drawer='units';flyTo('overview')}},
- {t:'Every building and step has its own data',p:'Click any building, machine or step to see what happens there, its capacity, how long it takes, and what it is doing right now. This is the tank shop; the same detail exists for every sub-process on site.',
-  go(){setMode('base');playing=false;syncPlay();setT(58.5);sel={info:'tankfab'};drawer=null;flyTo('tankfab')}},
- {t:'Every order has a full timeline',p:'For each order you can see how far it is built and how many hours each step took or is planned to take. Amber bars are time spent waiting. The same breakdown is available for every order in the plant.',
-  go(){setMode('base');playing=false;syncPlay();setT(150);sel={unit:'T-09'};drawer='units';flyTo('overview')}},
- {t:'Warning signs arrive, and nobody connects them',p:'A machine runs slow overnight. A supplier emails that T-07\'s bushings are stuck at customs. A customer offers flexibility. The messages sit unread in the planning inbox.',
-  go(){setMode('base');playing=false;syncPlay();setT(EV_CUSTOMER+.2);sel={unit:'T-07'};drawer='inbox';flyTo('overview')}},
- {t:'Two weeks later, the cost of not acting',p:'T-07 will ship 4 days late with a ₹1 crore penalty. Winding machine 4 broke down and cost T-11 two days. Oil ran out and T-15 is stuck. Every one of these was visible earlier.',
-  go(){setMode('base');playing=false;syncPlay();setT(300);sel={info:'oil'};drawer=null;flyTo('overview')}},
- {t:'Same plant, same days, with the AI agent',p:'Watch the cards in the bottom-right. The agent reads every message as it lands, links it to the right order, and handles small things itself, like chasing the supplier to fast-track customs. Each card names the rule that allowed it. Nobody had to approve these.',
-  go(){setMode('agent');setT(AG_READ-.02);lastAutoT=T;sel={unit:'T-07'};drawer='agent';flyTo('stores');playing=true;syncPlay()}},
- {t:'It refuses unsafe shortcuts',p:'To win back a day, skipping T-07\'s heat-run test looked tempting. The policy blocks it: tests are never skipped. Speed never overrides quality.',
-  go(){if(!agentOn())setMode('agent');playing=false;syncPlay();setT(AG_BLOCK+.01);sel=null;drawer='agent';flyTo('lab')}},
- {t:'Your turn: four decisions',p:'The agent only acts on costly things with a person\'s OK. Answer each notification in the bottom-right corner. The plant plays on between decisions.',wait:true,
-  go(){if(!agentOn())setMode('agent');DS={};lastToast='';buildPins();setT(57.29);sel={unit:'T-07'};drawer='agent';flyTo('overview');playing=true;syncPlay()}},
- {t:'The result',p:'Same problems, same plant. The difference is who read the messages and how fast someone could decide.',
-  go(){playing=false;syncPlay();setT(H_END);sel=null;drawer=null;flyTo('overview')}},
+ {t:'A transformer plant, one of our (synthetic) clients',p:'About 25 transformers are being built here at once. We connected an AI agent to the plant\'s schedule, machines and inbox.',
+  go(){jump(57.2);setFocus(null,[],true);flyTo('overview')}},
+ {t:'Wednesday 09:10. The agent spots a 4-day backlog.',p:'Order T-07 will now ship 4 days late. The customer\'s late penalty: ₹1 crore.',
+  go(){jump(57.26);setFocus(at07(),[U['T-07'].chip]);const[x,z]=at07();flyPT([x+14,24,z+26],[x,0,z])}},
+ {t:'The cause: T-07\'s parts are stuck at customs.',p:'The agent read a supplier email nobody had opened. The big connectors on top of T-07 (bushings) won\'t arrive until 18 Nov.',
+  go(){jump(57.26);setFocus([-66,1.4],[calls.BUSH.e]);flyPT([-50,22,24],[-66,0,1.4])}},
+ {t:'It fixes what it is allowed to, on its own.',p:'Chasing a supplier needs no approval. The agent asked them to fast-track customs. The parts now arrive 16 Nov.',
+  go(){jump(57.28);setFocus([-66,1.4],[calls.BUSH.e]);flyPT([-50,22,24],[-66,0,1.4])}},
+ {t:'It refuses an unsafe shortcut.',p:'Skipping T-07\'s final test would save a day. The rules say tests are never skipped, so the agent stops itself.',
+  go(){jump(57.372);setFocus([-36,49],[calls.BLOCK.e]);flyPT([-18,30,80],[-36,0,49])}},
+ {t:'It asks a person for the one costly decision.',p:'An extra night shift in the test lab costs ₹6 L. Answer the notification in the bottom-right corner.',wait:true,
+  go(){delete DS.t07;lastToast='';jump(57.40);setFocus(at07(),[U['T-07'].chip]);const[x,z]=at07();flyPT([x+14,24,z+26],[x,0,z])}},
+ {t:'',p:'',
+  go(){const ok=DS.t07==='approve';this.t=ok?'T-07 ships on 20 Nov. Penalty cut from ₹1 crore to ₹25 lakh.':'T-07 ships on 21 Nov. Penalty ₹75 lakh.';
+   this.p=ok?'Same plant, same problem. The agent found it, fixed what it could, refused a shortcut and asked once.':'Fast-tracking customs saved a day on its own. The night shift would have saved ₹50 lakh more.';
+   jump(ok?262:292);setFocus([14,54],[U['T-07'].chip]);flyPT([28,24,80],[14,0,54])}},
 ];
 let tourI=-1;
-function showStep(i){tourI=i;const s=TOUR[i];document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
-  $('tourStep').textContent=`Demo · step ${i+1} of ${TOUR.length}`;$('tourT').textContent=s.t;$('tourP').textContent=s.p;
+function showStep(i){tourI=i;const s=TOUR[i];
+  if(i===0||!agentOn()){setMode('agent');DS={wm4:'approve',mail:'approve',oil:'approve'};lastToast='';buildPins()}
+  sel=null;drawer=null;$('autos').innerHTML='';
+  document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
+  s.go();
+  $('tourStep').textContent=`Demo · ${i+1} of ${TOUR.length}`;$('tourT').textContent=s.t;$('tourP').textContent=s.p;
   $('tourDots').innerHTML=TOUR.map((_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('');
-  $('tourBack').disabled=i===0;$('tourNext').textContent=i===TOUR.length-1?'Finish':'Next';s.go();tourTick()}
-function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait){const n=Object.keys(DS).length;$('tourHint').textContent=`${n} of 4 decided`;$('tourNext').disabled=n<4}else{$('tourHint').textContent='';$('tourNext').disabled=false}}
-function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring')}
+  $('tourBack').disabled=i===0;$('tourNext').textContent=i===TOUR.length-1?'Finish':'Next';tourTick()}
+function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait&&!DS.t07){$('tourHint').textContent='Waiting for your decision';$('tourNext').disabled=true}else{$('tourHint').textContent='';$('tourNext').disabled=false}
+  if(focusRing.visible){const k=1+.12*Math.sin(performance.now()/250);focusRing.scale.set(k,k,k)}}
+function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring');
+  labelHost.classList.remove('focus','showbl');focusRing.visible=false;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
 $('tourBtn').onclick=()=>showStep(0);
 $('reset').onclick=()=>{endTour();playing=false;syncPlay();setMode('base');$('autos').innerHTML='';lastAutoT=0;sel=null;drawer=null;setT(0);flyTo('overview')};
 $('tourNext').onclick=()=>{if(tourI<TOUR.length-1)showStep(tourI+1);else endTour()};
 $('tourBack').onclick=()=>{if(tourI>0)showStep(tourI-1)};
 $('tourExit').onclick=endTour;
-setInterval(tourTick,300);
+setInterval(tourTick,60);
 buildPins();refresh(true);frame();
 </script>
