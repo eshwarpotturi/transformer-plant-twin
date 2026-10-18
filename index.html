@@ -189,6 +189,12 @@ button,select{font:inherit;color:inherit}
 .ordchart .r div i{display:block;height:100%;background:var(--ok);border-radius:3px}
 .ordchart .r div i.risk{background:var(--risk)} .ordchart .r div i.small{background:#5B8FB9}
 .ordchart .r span{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.savings{top:72px;right:max(16px,env(safe-area-inset-right,0px));width:min(360px,calc(100% - 32px));background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:14px 16px;border-top:5px solid var(--ok);animation:pop .4s ease-out}
+.savings h4{margin:0 0 10px;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.savings .g{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.savings .g div b{display:block;font-family:var(--font-display);font-size:30px;line-height:1;color:var(--ok);font-variant-numeric:tabular-nums}
+.savings .g div small{color:var(--ink-2);font-size:12px;line-height:1.35;display:block;margin-top:3px}
+.savings p{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.5}
 .tourtag{font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:#B45309;padding:4px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 14px rgba(15,23,42,.3)}
 .trace{margin-top:10px;background:#0F172A;color:#CBD5E1;border-radius:8px;padding:10px 12px;font-family:var(--font-mono);font-size:12px;line-height:1.6;min-height:24px}
 .trace:empty{display:none}
@@ -243,6 +249,7 @@ button,select{font:inherit;color:inherit}
     <div class="drawer" id="drawer" hidden></div>
   </aside>
   <section class="ov card" id="card" hidden></section>
+  <section class="ov savings" id="savings" hidden aria-live="polite"></section>
   <section class="ov ordchart" id="ordchart" hidden aria-live="polite"></section>
   <div class="ov autos" id="autos" aria-live="polite"></div>
   <section class="ov toast" id="toast" hidden role="alertdialog" aria-labelledby="toastT">
@@ -1095,7 +1102,7 @@ let tourI=-1;
 function showStep(i){tourI=i;const s=TOUR[i];
   if(i===0||!agentOn()){setMode('agent');DS={mail:'approve',oil:'approve'};PRESET=['mail','oil'];lastToast='';buildPins()}
   if(s.wait){delete DS[s.wait];lastToast=''}
-  sel=null;drawer=null;$('ordchart').hidden=true;document.querySelector('.app').classList.remove('showcard');$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
+  sel=null;drawer=null;$('ordchart').hidden=true;$('savings').hidden=true;document.querySelector('.app').classList.remove('showcard');$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
   document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
   jump(s.run[0]);setFocus(null,[],true);tourTag.visible=false;
   $('tourStep').textContent=`Demo · ${i+1} of ${TOUR.length}`;
@@ -1111,12 +1118,20 @@ function showStep(i){tourI=i;const s=TOUR[i];
       $('ordchart').hidden=false;setTimeout(()=>{if(tourI===i)$('ordchart').hidden=true},4000)}
     if(s.card){sel={info:s.card};document.querySelector('.app').classList.add('showcard');refresh(true);
       setTimeout(()=>{if(tourI!==i)return;sel=null;document.querySelector('.app').classList.remove('showcard');refresh(true)},5000)}
+    if(s.table){const t07=DS.t07==='approve'?75:DS.t07?25:0,t15=DS.oil==='approve'?30:0,cost=DS.t07==='approve'?6:0,wm=DS.wm4==='approve';
+      const days=(DS.t07==='approve'?3:DS.t07?1:0)+(DS.oil==='approve'?2:0)+(wm?2:0),auto=AUTO.filter(a=>a.k==='auto').length;
+      $('savings').innerHTML=`<h4>What this run saved</h4><div class="g">
+        <div><b>${money(t07+t15-cost)}</b><small>net saved: penalties avoided minus ₹${cost} L overtime</small></div>
+        <div><b>${days} days</b><small>of order delays avoided (T-07, T-11, T-15)</small></div>
+        <div><b>${wm?44:0} h</b><small>machine downtime avoided on winding machine 4</small></div>
+        <div><b>20 min</b><small>from first warning to an approved plan (was: never)</small></div></div>
+        <p>${auto} actions done by the agent alone · 2 approvals asked · 1 unsafe shortcut blocked</p>`;$('savings').hidden=false}
     if(s.table)$('tourTrace').innerHTML='<div class="hd">Result</div>'+cmpTable();else typeTrace(s.trace);
     run(...s.run)})}
 function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait&&!DS[s.wait]){$('tourHint').textContent='Waiting for your decision';$('tourNext').disabled=true}else{$('tourHint').textContent='';$('tourNext').disabled=false}
   if(focusRing.visible){const k=1+.12*Math.sin(performance.now()/250);focusRing.scale.set(k,k,k)}}
 function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring','showcard');
-  $('ordchart').hidden=true;labelHost.classList.remove('focus','showbl');focusRing.visible=false;tourTag.visible=false;fly=null;tourStop=null;tourSpeed=0;traceTok++;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
+  $('ordchart').hidden=true;$('savings').hidden=true;labelHost.classList.remove('focus','showbl');focusRing.visible=false;tourTag.visible=false;fly=null;tourStop=null;tourSpeed=0;traceTok++;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
 $('tourBtn').onclick=()=>showStep(0);
 $('reset').onclick=()=>{endTour();playing=false;syncPlay();setMode('base');$('autos').innerHTML='';lastAutoT=0;sel=null;drawer=null;setT(0);flyTo('overview')};
 $('tourNext').onclick=()=>{if(tourI<TOUR.length-1)showStep(tourI+1);else endTour()};
