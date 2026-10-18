@@ -181,6 +181,14 @@ button,select{font:inherit;color:inherit}
 .hovertip span{display:block;color:var(--ink-2)}
 .hovertip span.risk{color:var(--risk);font-weight:600} .hovertip span.warn{color:#92400E;font-weight:600} .hovertip span.ok{color:var(--ok)}
 .hovertip i{display:block;font-style:normal;color:var(--muted);font-size:11.5px;margin-top:3px}
+.ordchart{top:72px;right:max(16px,env(safe-area-inset-right,0px));width:min(330px,calc(100% - 32px));background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px;animation:pop .35s ease-out}
+.ordchart h4{margin:0 0 8px;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.ordchart .r{display:grid;grid-template-columns:38px 1fr 34px;gap:8px;align-items:center;font-size:11px;line-height:1;margin-bottom:3px}
+.ordchart .r b{font-family:var(--font-mono);font-weight:500}
+.ordchart .r div{height:8px;border-radius:3px;background:var(--soft);overflow:hidden}
+.ordchart .r div i{display:block;height:100%;background:var(--ok);border-radius:3px}
+.ordchart .r div i.risk{background:var(--risk)} .ordchart .r div i.small{background:#5B8FB9}
+.ordchart .r span{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
 .tourtag{font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:#B45309;padding:4px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 14px rgba(15,23,42,.3)}
 .trace{margin-top:10px;background:#0F172A;color:#CBD5E1;border-radius:8px;padding:10px 12px;font-family:var(--font-mono);font-size:12px;line-height:1.6;min-height:24px}
 .trace:empty{display:none}
@@ -235,6 +243,7 @@ button,select{font:inherit;color:inherit}
     <div class="drawer" id="drawer" hidden></div>
   </aside>
   <section class="ov card" id="card" hidden></section>
+  <section class="ov ordchart" id="ordchart" hidden aria-live="polite"></section>
   <div class="ov autos" id="autos" aria-live="polite"></div>
   <section class="ov toast" id="toast" hidden role="alertdialog" aria-labelledby="toastT">
     <div class="a"><i></i>Plant Twin · AI agent<em id="toastN"></em></div>
@@ -1049,7 +1058,7 @@ function run(from,to,sp){T=from;lastAutoT=from;scrub.value=T;tourStop=to;tourSpe
 const wmPos=()=>[RES['WM-4'].x,RES['WM-4'].z];
 const TOUR=[
  {t:'A transformer works with 25 orders in flight',p:'For one of our (synthetic) clients, we connected an AI agent to their plant.',
-  focus:null,area:'',hl:()=>[],run:[28,50,7],
+  focus:null,area:'',hl:()=>[],run:[28,50,7],chart:true,
   trace:['Watches: schedule, 41 machines, inbox, shift logs','Follows a policy: what it may do alone, what needs a person']},
  {t:'Every part of the plant has live details',p:'Click any building or machine to see its capacity, cycle time and what it is working on right now.',
   focus:[23,17.5],area:'Drying ovens',hl:()=>[],run:[50,53.8,.9],card:'ovens',trace:[]},
@@ -1062,12 +1071,9 @@ const TOUR=[
  {t:'Why? Its parts are stuck at customs',p:'Found in an unread supplier email. Chasing a supplier needs no approval, so it does it: parts now arrive 16 Nov.',
   focus:[-66,1.4],area:'Stores · bushing shelf',hl:()=>[calls.BUSH.e],run:[57.26,57.31,.025],
   trace:['Supplier email: "held at Chennai customs, ETA 18th"','Rule: chasing a supplier → allowed alone','Backlog down from 4 days to 3']},
- {t:'It weighs the options, and rules one out',p:'Skipping a test is never allowed.',
-  focus:[-36,49],area:'High-voltage test lab',hl:()=>[calls.BLOCK.e],run:[57.37,57.372,.02],
-  trace:['Skip the final test: −1 day → ⛔ never allowed','Night shift in test lab: −2 days, ₹6 L → ask a person']},
- {t:'It asks the plant head to decide',p:'Answer the notification in the bottom-right corner.',wait:'t07',
-  focus:at07(),area:'Hold area · T-07',hl:()=>[U['T-07'].chip],run:[57.39,57.40,.05],
-  trace:['Spend ₹6 L to avoid ₹75 L of penalty','Overtime above ₹2 L → needs a person']},
+ {t:'It rules out a shortcut, then asks the plant head',p:'Skipping a test is never allowed. A night shift in the test lab is, but it costs money, so it asks. Answer bottom right.',wait:'t07',
+  focus:[-36,49],area:'High-voltage test lab',hl:()=>[calls.BLOCK.e],run:[57.37,57.40,.012],
+  trace:['Skip the final test: −1 day → ⛔ never allowed','Night shift: −2 days for ₹6 L, saves ₹75 L of penalty','Overtime above ₹2 L → needs a person']},
  {t:'Two days later · it spots oil running short',p:'It flagged it to purchasing early, so the order went in on time.',
   focus:[70,24],area:'Oil storage',hl:()=>[calls.OIL.e,U['T-15'].chip],run:[98,106,1.5],
   trace:['210 kL in stock, next fillings need 300 kL','Empty by 21 Nov → T-15 would be stuck','Purchase above ₹50 L → sent to purchasing']},
@@ -1089,7 +1095,7 @@ let tourI=-1;
 function showStep(i){tourI=i;const s=TOUR[i];
   if(i===0||!agentOn()){setMode('agent');DS={mail:'approve',oil:'approve'};PRESET=['mail','oil'];lastToast='';buildPins()}
   if(s.wait){delete DS[s.wait];lastToast=''}
-  sel=null;drawer=null;document.querySelector('.app').classList.remove('showcard');$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
+  sel=null;drawer=null;$('ordchart').hidden=true;document.querySelector('.app').classList.remove('showcard');$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
   document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
   jump(s.run[0]);setFocus(null,[],true);tourTag.visible=false;
   $('tourStep').textContent=`Demo · ${i+1} of ${TOUR.length}`;
@@ -1100,6 +1106,9 @@ function showStep(i){tourI=i;const s=TOUR[i];
     $('tourT').className='';$('tourT').textContent=s.t;$('tourP').textContent=s.p;
     setFocus(s.focus,s.hl(),!s.focus);
     if(s.focus){tourTag.element.textContent=s.area;tourTag.position.set(s.focus[0],9,s.focus[1]);tourTag.visible=true}
+    if(s.chart){const live=UNITS.filter(u=>!isShipped(u,T)&&locate(actualSegs(u),T).phase!=='before').sort((a,b)=>pct(b,T)-pct(a,T));
+      $('ordchart').innerHTML=`<h4><span>Progress of every order</span><span>${live.length} in the plant</span></h4>`+live.map(u=>`<div class="r"><b>${u.id}</b><div><i class="${status(u,T).cls==='risk'?'risk':u.small?'small':''}" style="width:${pct(u,T)}%"></i></div><span>${pct(u,T)}%</span></div>`).join('');
+      $('ordchart').hidden=false;setTimeout(()=>{if(tourI===i)$('ordchart').hidden=true},4000)}
     if(s.card){sel={info:s.card};document.querySelector('.app').classList.add('showcard');refresh(true);
       setTimeout(()=>{if(tourI!==i)return;sel=null;document.querySelector('.app').classList.remove('showcard');refresh(true)},5000)}
     if(s.table)$('tourTrace').innerHTML='<div class="hd">Result</div>'+cmpTable();else typeTrace(s.trace);
@@ -1107,7 +1116,7 @@ function showStep(i){tourI=i;const s=TOUR[i];
 function tourTick(){if(tourI<0)return;const s=TOUR[tourI];if(s.wait&&!DS[s.wait]){$('tourHint').textContent='Waiting for your decision';$('tourNext').disabled=true}else{$('tourHint').textContent='';$('tourNext').disabled=false}
   if(focusRing.visible){const k=1+.12*Math.sin(performance.now()/250);focusRing.scale.set(k,k,k)}}
 function endTour(){if(tourI<0)return;tourI=-1;$('tour').hidden=true;document.querySelector('.app').classList.remove('touring','showcard');
-  labelHost.classList.remove('focus','showbl');focusRing.visible=false;tourTag.visible=false;fly=null;tourStop=null;tourSpeed=0;traceTok++;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
+  $('ordchart').hidden=true;labelHost.classList.remove('focus','showbl');focusRing.visible=false;tourTag.visible=false;fly=null;tourStop=null;tourSpeed=0;traceTok++;document.querySelectorAll('[data-hl]').forEach(e=>delete e.dataset.hl);refresh(true)}
 $('tourBtn').onclick=()=>showStep(0);
 $('reset').onclick=()=>{endTour();playing=false;syncPlay();setMode('base');$('autos').innerHTML='';lastAutoT=0;sel=null;drawer=null;setT(0);flyTo('overview')};
 $('tourNext').onclick=()=>{if(tourI<TOUR.length-1)showStep(tourI+1);else endTour()};
