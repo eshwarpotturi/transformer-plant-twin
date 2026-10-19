@@ -12,7 +12,7 @@ Proof of concept for Straive's Innovation Team. **All data is synthetic.** Figur
 
 ## Guided demo
 
-Click **▶ Play demo** in the top bar for an 8-step story: at midnight the agent finds a 4-day backlog on T-07, traces it to a slow Tank & Oil station, fixes what it may on its own, asks to take the station offline (approval 1), rules out skipping a test and asks for a night shift (approval 2), then shows what was saved. Exit at any time to explore freely.
+Click **▶ Play demo** in the top bar for a 6-step story told in titles only: 25 orders in flight → midnight, a 4-day backlog on Drying oven 2 → because Tank & Oil station 1 is running slow → the agent sends the spare pump itself, then asks to fit it (approval 1) → it won't skip a safety test, so it asks for a night shift (approval 2) → what the agent saved. Exit at any time to explore freely.
 
 ## What it shows
 
