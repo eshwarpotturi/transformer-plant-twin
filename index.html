@@ -276,21 +276,25 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 
 /* ================= Synthetic plant data (hours from Mon 9 Nov 2026 00:00) ================= */
 const H_END=408, T0=new Date(2026,10,9,0,0);
-const EV_SHIFTLOG=54, EV_SUPPLIER=57+10/60, EV_CUSTOMER=57+40/60;
-const AG_READ=57.25, AG_CHASE=57.27, AG_BLOCK=57.37;
+const EV_SHIFTLOG=54, EV_SUPPLIER=48+10/60, EV_CUSTOMER=48+40/60;
+const AG_READ=48.25, AG_CHASE=48.27, AG_BLOCK=48.37;
+const TK1_ASK=48.33, TK1_FIXED=56;
 const WM4_BREAK=86, WM4_FIXED=134, OIL_OUT=282, OIL_EMERGENCY=354, OIL_ORDER_AT=106, OIL_ARRIVE_AGENT=226;
 
 /* Four decisions the agent brings to a person, in order */
 const DEC=[
  {id:'wm4',at:54.2,title:'Take winding machine 4 offline tonight?',yes:'Approve inspection',no:'Keep it running',
   body:()=>`<p>The night shift logged grinding on machine 4 but raised no ticket. A 4-hour inspection tonight (22:00–02:00) costs T-11 four hours and does not move its ship date. If it breaks during a shift, repair takes about 2 days.</p>`},
- {id:'t07',at:57.40,title:'Approve a night shift for T-07?',yes:'Approve',no:'Reject',
+ {id:'tk1',at:TK1_ASK,title:'Take Tank & Oil station 1 offline for 4 hours?',yes:'Approve repair',no:'Keep it running',
+  body:()=>`<p>Its vacuum pump is at 41% speed, so every tank fill takes 2.5× longer. The spare pump is on its way from stores. Fitting it takes 4 hours tonight; no order loses a day.</p>`},
+ {id:'t07',at:48.40,title:'Approve a night shift for T-07?',yes:'Approve',no:'Reject',
   body:()=>`<p>₹6 L overtime in the test lab. T-07 then ships <b>20 Nov</b> instead of 23 Nov, and the penalty drops from <b>₹1 Cr to ₹25 L</b>.</p>`},
- {id:'mail',at:57.55,title:'Send this update to Western Grid Utility?',yes:'Send',no:'Hold for now',
+ {id:'mail',at:48.55,title:'Send this update to Western Grid Utility?',yes:'Send',no:'Hold for now',
   body:()=>{const d=DS.t07==='approve'?'20 Nov':'21 Nov',w=DS.t07==='approve'?'one day':'two days';return`<p>The agent drafted the customer notice. Nothing goes out without your OK.</p><blockquote>Dear Ms Rao, the 420 kV bushings for your 315 MVA unit (T-07) were held at Chennai customs. We have fast-tracked clearance and re-planned testing. T-07 will now ship on <b>${d}</b>, ${w} after the contract date. We will confirm the test date by Friday.</blockquote>`}},
  {id:'oil',at:OIL_ORDER_AT,title:'Order transformer oil now?',yes:'Place order',no:'Wait',
   body:()=>`<p>Oil storage holds <b>${Math.round(oilStock(OIL_ORDER_AT))} kL</b>. The next five tank fillings need about 300 kL, and delivery takes 5 days. Without an order, oil runs out around 21 Nov and T-15 waits. Order 150 kL from the usual refinery (₹1.6 Cr).</p>`},
 ];
+DEC.sort((x,y)=>x.at-y.at);
 let DS={};  // decision state: id -> 'approve' | 'reject'
 const decideAt=id=>DEC.find(d=>d.id===id).at+.06;
 const decided=(id,t)=>DS[id]&&t>=decideAt(id)?DS[id]:null;
@@ -348,7 +352,7 @@ const UNITS=[
 })();
 const MSGS=[
  {id:'m1',at:EV_SHIFTLOG,from:'Night shift log',subj:'Machine noise',about:'T-11',body:'WM-4 grinding noise during tension change, ran at reduced speed after 2am, maint informed verbally, no ticket raised.'},
- {id:'m2',at:EV_SUPPLIER,from:'Anil · ABC Insulators',subj:'Bushings delayed',about:'T-07',body:'Regret to inform the 420kV bushings for PO 4500-1182 are held at Chennai port customs. Revised ETA 18th instead of 13th. May improve by 1–2 days if documents are cleared today.'},
+ {id:'m2',at:EV_SUPPLIER,from:'Equipment log · Tank & Oil station 1',subj:'Vacuum pump slow',about:'T-07',body:'TK-1 vacuum pump at 41% of rated speed since 22:40. Fill rate 0.9 kL/h (normal 2.4 kL/h). No alarm raised; no maintenance ticket open.'},
  {id:'m3',at:EV_CUSTOMER,from:'State Utility B',subj:'Can accept later delivery',about:'T-09',body:'We can accept the unit at site up to 4 days after the contract date, provided the FAT witness date stays as planned.'},
  {id:'m4',at:100,from:'Stores · weekly stock report',subj:'Oil stock',about:'T-15',body:'Transformer oil: tanks 1–6 at 210 kL combined. No open purchase order. Next fillings: T-09, T-07, T-10, T-14, T-15.'},
 ];
@@ -356,7 +360,7 @@ const MSGS=[
 const AUTO=[
  {at:AG_READ,k:'read',text:'Read 3 unread messages and linked them to T-07, T-09 and winding machine 4.',rule:'Reading and linking information needs no approval.'},
  {at:AG_READ+.01,k:'read',text:'Noted T-09\'s customer can accept delivery 4 days later. Kept as a backup.',rule:'Reading and linking information needs no approval.'},
- {at:AG_CHASE,k:'auto',text:'Asked ABC Insulators to fast-track customs with the cleared documents. Bushings now due 16 Nov.',rule:'Supplier follow-ups: allowed without approval.',go:'stores'},
+ {at:AG_CHASE,k:'auto',text:'Moved T-07 to the front of the station 1 queue and sent the spare vacuum pump from stores.',rule:'Re-ordering a queue and moving spares inside the plant: allowed without approval.',go:'drying'},
  {at:AG_BLOCK,k:'blocked',text:'Considered skipping T-07\'s heat-run test to gain a day. Blocked: this test is mandatory.',rule:'Skipping or shortening a test: never allowed.',go:'lab'},
  {at:101,k:'read',text:'Read the weekly stock report. Oil will run short before T-15 is filled.',rule:'Reading and linking information needs no approval.',go:'oil'},
  {at:120,k:'auto',text:'Moved two winders from machine 6 to machine 2 for the next small order. No overtime.',rule:'Moving crews between stations: allowed without approval.',go:'clean'},
@@ -436,6 +440,7 @@ function knownSegs(u,t){
   return u.segs;
 }
 const bushArrive=()=>agentOn()?172:216;
+const tk1Slow=t=>t>=EV_SUPPLIER-1.5&&!(agentOn()&&decided('tk1',t)==='approve')&&t<(agentOn()?TK1_FIXED:224);
 const wm4Broken=t=>(!agentOn()||DS.wm4!=='approve')&&t>=WM4_BREAK&&t<WM4_FIXED;
 const wm4Slow=t=>t>=50&&t<WM4_BREAK&&!(agentOn()&&decided('wm4',t)==='approve');
 function oilStock(t){
@@ -465,7 +470,7 @@ function status(u,t){
   if(isShipped(u,t))return{key:'shipped',label:'Shipped',cls:'idle'};
   const k=loc.seg[0],ld=lateDays(u,t);
   const recovered=u.id==='T-07'&&agentOn()&&decided('t07',t)==='approve';
-  let label=STAGE[k];if(u.small&&k==='hold')return{key:k,label:'Queued',late:0,cls:'ok'};if(u.id==='T-11'&&wm4Broken(t))label='Machine broken';if(u.id==='T-15'&&k==='hold')label='Waiting for oil';
+  let label=STAGE[k];if(u.id==='T-07'&&k==='hold')label='Waiting for Tank & Oil';if(u.small&&k==='hold')return{key:k,label:'Queued',late:0,cls:'ok'};if(u.id==='T-11'&&wm4Broken(t))label='Machine broken';if(u.id==='T-15'&&k==='hold')label='Waiting for oil';
   const stuck=(u.id==='T-11'&&wm4Broken(t))||(u.id==='T-15'&&k==='hold');
   return{key:k,label,late:ld,cls:ld?(recovered?'warn':'risk'):(k==='hold'||stuck?'warn':'ok'),recovered,stuck};
 }
@@ -474,7 +479,7 @@ function status(u,t){
 const INFO={
  stores:{n:'Stores & receiving',d:'Raw materials and bought-in parts arrive by truck, are checked, and wait here until production calls them off.',
   f:[['Floor area','6,800 m²'],['Electrical steel (CRGO)','~420 t in stock'],['Copper conductor','~130 t'],['Lead time, bushings','12–16 weeks'],['Lead time, steel','10–14 weeks'],['Inbound trucks','8–12 a day']],
-  live:t=>[[`T-07's bushings: ${t<EV_SUPPLIER?'due 13 Nov':t<bushArrive()?(agentOn()&&t>=AG_CHASE?'fast-tracked, due 16 Nov':'stuck at customs, due 18 Nov'):'received'}`,t>=EV_SUPPLIER&&t<bushArrive()?'risk':'']]},
+  live:()=>[]},
  core:{n:'Core cutting & stacking',d:'Grain-oriented electrical steel coils are slit and cut into thin laminations, then stacked by hand in a step-lap pattern to form the magnetic core.',
   f:[['Cut-to-length lines','2'],['Output','~9 t per line per shift'],['Lamination thickness','0.23–0.27 mm'],['Stacking a 315 MVA core','3–4 days'],['Crane','25 t bay crane']],live:t=>busyLines(['CL-1','CL-2'],t)},
  insul:{n:'Insulation parts',d:'Pressboard and paper are cut, machined and glued into spacers, cylinders and barriers that keep the windings apart.',
@@ -489,7 +494,7 @@ const INFO={
   f:[['Stations','2'],['Oil treatment','6,000 L/hour, degassed'],['Oil per large unit','~60 kL'],['Settling','24–48 hours'],['Vacuum hold','≤ 1 mbar']],
   live:t=>[...busyLines(['TK-1','TK-2'],t),[`Oil in storage: ${Math.round(oilStock(t))} kL`,oilStock(t)<60?'risk':oilStock(t)<120?'warn':'']]},
  hold:{n:'Hold area',d:'A marked bay where units wait when a part or a slot is missing. Anything sitting here is costing time.',f:[['Spaces','2']],
-  live:t=>{const r=[];for(const u of UNITS){const s=actualSegs(u).find(x=>x[0]==='hold'&&t>=x[2]&&t<x[3]);if(s)r.push([`${u.id} waiting · ${u.id==='T-15'?'no oil':'bushings'}`,'warn'])}return r.length?r:[['Empty','ok']]}},
+  live:t=>{const r=[];for(const u of UNITS){const s=actualSegs(u).find(x=>x[0]==='hold'&&t>=x[2]&&t<x[3]);if(s)r.push([`${u.id} waiting · ${u.id==='T-15'?'no oil':'Tank & Oil station 1'}`,'warn'])}return r.length?r:[['Empty','ok']]}},
  testlab:{n:'High-voltage test lab',d:'Every transformer is tested before it ships: ratio, losses, insulation and lightning-impulse tests. Customers often fly in to watch (factory acceptance test). One bay, so it is the plant\'s bottleneck.',
   f:[['Test bays','1 shielded bay'],['Impulse generator','2,400 kV'],['Routine test, large unit','1.5–2 days'],['Booked next 7 days','see below'],['Safety','Interlocked cage, red beacon when live']],
   live:t=>{const cur=UNITS.find(u=>{const s=actualSegs(u).find(x=>x[1]==='TB-1');return s&&t>=s[2]&&t<s[3]});let busy=0;for(const u of UNITS)for(const s of actualSegs(u))if(s[1]==='TB-1')busy+=Math.max(0,Math.min(s[3],t+168)-Math.max(s[2],t));
@@ -786,7 +791,7 @@ function ambient(now,dt,occ){
   for(const f of FANS)f.rotation.y+=dt*5;
   for(const p of PUFFS){const k=(now*.25+p.o)%1;p.sp.position.set(p.x+k*3,p.y+k*7,p.z+k*1.5);p.sp.scale.setScalar(.6+k*1.8);p.sp.material.opacity=.55*(1-k)}
   let wl=0;for(const w of WELDS){const on=Math.random()>.35;w.visible=on;if(on){w.scale.setScalar(.6+Math.random()*.8);wl=1}}weldLight.intensity=wl?2+Math.random()*3:0;
-  const flow=occ['TK-1']||occ['TK-2']?1:.25;for(const b of BEADS){const k=(now*.08*flow+b.o)%1;b.b.position.copy(pathPos(beadPath,k))}
+  const flow=(occ['TK-1']||occ['TK-2']?1:.25)*(tk1Slow(T)?.3:1);for(const b of BEADS){const k=(now*.08*flow+b.o)%1;b.b.position.copy(pathPos(beadPath,k))}
   for(const p of SPRAY){p.position.set(84+Math.random()*1.5,1.5+Math.random()*2.5,-13.6+Math.random()*3.2);p.visible=Math.random()>.2}
   piston.position.y=4.2-.9*Math.max(0,Math.sin(now*1.2));
   const tb=occ['TB-1'],ph=now%4;bolt.visible=!!tb&&ph<.18;boltLight.intensity=bolt.visible?6:0;
@@ -796,7 +801,8 @@ function routePos(f,t,k){const F=RES[f],T=RES[t];const p=pathPos([[F.x,F.z],...v
 const calls={};
 function callout(id,x,y,z){const e=el('callout','');const o=label(e,x,y,z);o.visible=false;calls[id]={e,o,txt:'',cls:''}}
 function setCall(id,txt,cls=''){const c=calls[id];c.o.visible=!!txt;if(!txt)return;if(c.txt!==txt){c.e.textContent=txt;c.txt=txt}const k='callout '+cls;if(c.cls!==k){c.e.className=k;c.cls=k}}
-callout('WM4',-39,6.5,7.5);callout('BUSH',-66,3.2,1.4);callout('OFFICE',-84,8.5,30);callout('BLOCK',-36,12,49);callout('LAB',-36,10.5,55);callout('OIL',70,9,24);
+callout('WM4',-39,6.5,7.5);callout('TK1',-5,7,15.5);
+const tk1Ring=new THREE.Mesh(new THREE.RingGeometry(4.4,5.2,48),new THREE.MeshBasicMaterial({color:'#E5484D',transparent:true,opacity:.6,side:THREE.DoubleSide}));tk1Ring.rotation.x=-Math.PI/2;tk1Ring.position.set(-5,.2,15.5);tk1Ring.visible=false;scene.add(tk1Ring);callout('BUSH',-66,3.2,1.4);callout('OFFICE',-84,8.5,30);callout('BLOCK',-36,12,49);callout('LAB',-36,10.5,55);callout('OIL',70,9,24);
 const linkMat=new THREE.LineDashedMaterial({color:'#E5484D',dashSize:1.6,gapSize:1});
 const link=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),linkMat);link.visible=false;scene.add(link);
 const pulses=['T-07','WM-4','T-09'].map(to=>{const s=new THREE.Mesh(new THREE.SphereGeometry(1.1,16,12),new THREE.MeshBasicMaterial({color:'#6D4FD8'}));s.visible=false;scene.add(s);return{s,to}});
@@ -832,14 +838,9 @@ function updateWorld(t,dt,playing){
   const tb=occ['TB-1'];cageMat.color.set(tb?'#F97316':'#334155');beaconM.emissiveIntensity=tb?(Math.sin(performance.now()/180)>0?2.5:0):0;
   setCall('LAB',tb?`Testing ${tb.id}${tb.fat?' · customer watching':''}`:'','');
   for(const s of sparks)s.visible=Math.random()>.45;
-  const arr=bushArrive(),chased=agentOn()&&t>=AG_CHASE;
-  if(t<EV_SUPPLIER){slotMat.color.set('#64748B');setCall('BUSH',"T-07's bushings · due 13 Nov");bushCrate.visible=false;slot.visible=true}
-  else if(t<arr){slotMat.color.set(chased?'#6D4FD8':'#E5484D');slot.visible=true;bushCrate.visible=false;setCall('BUSH',chased?"T-07's bushings · customs fast-tracked · due 16 Nov":"T-07's bushings · stuck at customs · due 18 Nov",chased?'agent':'risk')}
-  else if(t<arr+8){setCall('BUSH',"T-07's bushings arrived",'ok');bushCrate.visible=true;slot.visible=false}
-  else{setCall('BUSH','');bushCrate.visible=false;slot.visible=false}
-  const o7=U['T-07'];const on=t>=EV_SUPPLIER&&t<arr&&o7.g.visible;link.visible=on;
-  if(on){linkMat.color.set(chased?'#6D4FD8':'#E5484D');const b=o7.g.position;
-    link.geometry.setFromPoints([new THREE.Vector3(-66,1.2,1.4),new THREE.Vector3(-66,1.2,-29),new THREE.Vector3(-52,1.2,-29),new THREE.Vector3(-52,1.2,30),new THREE.Vector3(-30,1.2,30),new THREE.Vector3(-30,1.2,10),new THREE.Vector3(b.x,1.2,10),new THREE.Vector3(b.x,1.2,b.z)]);link.computeLineDistances()}
+  setCall('BUSH','');bushCrate.visible=false;slot.visible=false;link.visible=false;
+  const slow=tk1Slow(t),chased=agentOn()&&t>=AG_CHASE;tk1Ring.visible=slow;if(slow)tk1Ring.material.opacity=.35+.3*Math.sin(performance.now()/260);
+  setCall('TK1',t<EV_SUPPLIER-1?'':!slow?(t<TK1_FIXED+12?'✓ Tank & Oil station 1 · new pump fitted · full speed':''):chased?'Station 1 slow · spare pump on its way · T-07 moved to front':'Tank & Oil station 1 · vacuum pump at 41% · filling 2.5× slower',!slow?'ok':chased?'agent':'risk');
   const unread=MSGS.filter(x=>t>=x.at).length,readByAgent=agentOn()&&t>=AG_READ;
   setCall('OFFICE',!unread?'':readByAgent?`✓ Agent read ${unread} messages`:`${unread} unread message${unread>1?'s':''} · nobody has acted`,readByAgent?'agent':(t>=EV_SUPPLIER?'risk':'warn'));
   setCall('BLOCK',agentOn()&&t>=AG_BLOCK&&t<AG_BLOCK+30?"⛔ Agent wanted to skip T-07's heat-run test · blocked, mandatory test":'','block');
@@ -872,24 +873,24 @@ function summary(){const a=agentOn();const t07=a?(DS.t07==='approve'?'20 Nov':'2
   const t11=a&&DS.wm4==='approve'?'0 days':'2 days',oil=a&&DS.oil==='approve'?'None':'T-15 waits 3 days';return{t07,pen07,t11,oil}}
 function cmpTable(){const s=summary();return`<table class="cmp"><tr><th></th><th>No agent</th><th>This run</th></tr>
 <tr><td>T-07 ships</td><td class="bad">23 Nov · ₹1.0 Cr</td><td class="${s.pen07<100?'good':'bad'}">${s.t07} · ${money(s.pen07)}</td></tr>
+<tr><td>Tank & Oil station 1</td><td class="bad">slow for 7 days</td><td class="${agentOn()&&DS.tk1==='approve'?'good':'bad'}">${agentOn()&&DS.tk1==='approve'?'fixed in 4 h':'slow for 7 days'}</td></tr>
 <tr><td>Machine 4 downtime</td><td class="bad">2 days</td><td class="${s.t11==='0 days'?'good':'bad'}">${s.t11}</td></tr>
 <tr><td>Oil shortage</td><td class="bad">T-15 waits 3 days</td><td class="${s.oil==='None'?'good':'bad'}">${s.oil}</td></tr>
-<tr><td>Approvals asked of you</td><td>0</td><td>${Object.keys(DS).filter(k=>!PRESET.includes(k)).length} of ${4-PRESET.length}</td></tr></table>`}
+<tr><td>Approvals asked of you</td><td>0</td><td>${Object.keys(DS).filter(k=>!PRESET.includes(k)).length} of ${DEC.length-PRESET.length}</td></tr></table>`}
 function storyData(t){
   const u=UNITS.find(x=>x.id==='T-07'),eb=agentOn()?'With AI agent':'The plant today, no agent';
   const p=pending(t);
   if(p){const n=DEC.indexOf(p)+1;return{eb,tag:`Decision ${n} of 4`,cls:'agent',h:p.title,p:'The agent has prepared this. Answer in the notification, bottom right.',nums:''}}
   if(t>=H_END-1)return{eb,cls:'ok',h:agentOn()?'The 17 days are done.':'The 17 days are done.',p:agentOn()?'Same plant, same problems. Here is what your decisions changed.':'Switch to "With AI agent" to replay the same days.',nums:cmpTable()};
-  if(t<EV_SHIFTLOG)return{eb,cls:'ok',h:`${UNITS.length} orders in the plant, all on schedule.`,p:'Press play to run the factory day by day. Click any building, machine or transformer to see what it does.',nums:''};
-  if(t<EV_SUPPLIER)return{eb,cls:'warn',h:'Winding machine 4 ran slow overnight.',p:'The night shift wrote it in the log but nobody raised a repair ticket.',nums:''};
+  if(t<EV_SUPPLIER)return{eb,cls:'ok',h:`${UNITS.length} orders in the plant, all on schedule.`,p:'Press play to run the factory day by day. Click any building, machine or transformer to see what it does.',nums:''};
   if(!agentOn()){
     if(t>=OIL_OUT&&t<OIL_EMERGENCY)return{eb,cls:'risk',h:'The plant ran out of transformer oil.',p:'T-15 is dried and ready but cannot be filled. The stock report warned on 13 Nov; nobody ordered. Emergency oil arrives 23 Nov.',nums:''};
     if(t>=WM4_BREAK&&t<WM4_FIXED)return{eb,cls:'risk',h:'Winding machine 4 broke down.',p:'The noise logged on 11 Nov was a failing bearing. T-11 loses 2 days while it is repaired.',nums:''};
-    if(!isShipped(u,t))return{eb,cls:'risk',h:`T-07 will ship ${lateDays(u,t)} days late.`,p:'Its bushings are stuck at customs. The messages that explain the problem and a way out are still unread.',
+    if(!isShipped(u,t))return{eb,cls:'risk',h:`T-07 will ship ${lateDays(u,t)} days late.`,p:'Tank & Oil station 1 is running slow, so T-07 waits in its queue. The equipment log shows it, but nobody has looked.',
       nums:`<div class="nums"><div><b>${money(lateDays(u,t)*25)}</b><small>late penalty</small></div><div><b>${fmtDur(t-EV_SUPPLIER)}</b><small>since the warning, no plan</small></div></div>`};
     return{eb,cls:'risk',h:'T-07 shipped 4 days late, ₹1 crore penalty.',p:'Keep playing to see the rest of the fortnight.',nums:''};
   }
-  if(t<AG_READ)return{eb,cls:'agent',h:'Supplier warning received.',p:'The agent is reading it.',nums:''};
+  if(t<AG_READ)return{eb,cls:'agent',h:'A 4-day backlog appears on T-07.',p:'The agent is checking why.',nums:''};
   if(t>=OIL_OUT&&t<OIL_EMERGENCY&&DS.oil!=='approve')return{eb,cls:'risk',h:'Out of oil. T-15 waits.',p:'You chose not to order on 13 Nov. Emergency oil arrives 23 Nov.',nums:''};
   if(t>=WM4_BREAK&&t<WM4_FIXED&&DS.wm4!=='approve')return{eb,cls:'risk',h:'Machine 4 broke down.',p:'You kept it running on 11 Nov. T-11 loses 2 days.',nums:''};
   const done=Object.keys(DS).length;
@@ -964,7 +965,7 @@ let lastPanels=0;
 function refresh(force){const now=performance.now();if(!force&&now-lastPanels<150)return;lastPanels=now;renderStory(T);renderCard(T);renderDrawer(T);renderChrome(T)}
 function buildPins(){const p=$('pins');p.innerHTML='';
   const add=(h,c,title,unit)=>{const b=document.createElement('button');b.style.left=(h/H_END*100)+'%';b.style.background=c;b.title=`${fmtDT(h)} · ${title}`;b.setAttribute('aria-label',b.title);b.onclick=()=>{playing=false;syncPlay();setT(h+.01);if(unit)select(unit,true)};p.appendChild(b)};
-  add(EV_SHIFTLOG,'#D97706','Machine 4 runs slow',{info:'clean'});add(EV_SUPPLIER,'#E5484D','Bushings delayed',{unit:'T-07'});
+  add(EV_SHIFTLOG,'#D97706','Machine 4 runs slow',{info:'clean'});add(EV_SUPPLIER,'#E5484D','Station 1 slows · T-07 backlog',{unit:'T-07'});
   if(agentOn())for(const d of DEC)add(d.at,'#6D4FD8',`Decision: ${d.title}`);
   else{add(WM4_BREAK,'#E5484D','Machine 4 breaks down',{unit:'T-11'});add(OIL_OUT,'#E5484D','Oil runs out',{info:'oil'})}
   add(finalSegs('T-07').at(-1)[3],agentOn()&&DS.t07==='approve'?'#15803D':'#E5484D','T-07 ships',{unit:'T-07'});}
@@ -1033,7 +1034,7 @@ const clock=new THREE.Clock();
 function frame(){
   const dt=Math.min(clock.getDelta(),.1);
   if(playing){
-    let s=speed;if(agentOn()&&T>=EV_SUPPLIER-.1&&T<57.7)s=Math.min(s,.05);if(tourI>=0&&tourSpeed)s=tourSpeed;
+    let s=speed;if(agentOn()&&T>=EV_SUPPLIER-.1&&T<EV_SUPPLIER+.55)s=Math.min(s,.05);if(tourI>=0&&tourSpeed)s=tourSpeed;
     const nextAsk=agentOn()?DEC.find(d=>!DS[d.id]):null;
     T+=s*dt;
     if(nextAsk&&T>=nextAsk.at){T=nextAsk.at;playing=false;syncPlay();if(nextAsk.id==='oil')select({info:'oil'});else if(nextAsk.id==='wm4')select({info:'clean'})}
@@ -1065,26 +1066,26 @@ function run(from,to,sp){T=from;lastAutoT=from;scrub.value=T;tourStop=to;tourSpe
 const wmPos=()=>[RES['WM-4'].x,RES['WM-4'].z];
 const TOUR=[
  {t:'A transformer works with 25 orders in flight',p:'For one of our (synthetic) clients, we connected an AI agent to their plant.',
-  focus:null,area:'',hl:()=>[],run:[28,50,7],chart:true,
+  focus:null,area:'',hl:()=>[],run:[24,46,7],chart:true,
   trace:['Watches: schedule, 41 machines, inbox, shift logs','Follows a policy: what it may do alone, what needs a person']},
  {t:'Every part of the plant has live details',p:'Click any building or machine to see its capacity, cycle time and what it is working on right now.',
-  focus:[23,17.5],area:'Drying ovens',hl:()=>[],run:[50,53.8,.9],card:'ovens',trace:[]},
- {t:'06:12 · Machine 4 is running slow',p:'Winding machine 4 is running slow. Nobody reported it.',wait:'wm4',
-  focus:wmPos(),area:'Coil winding room · machine 4',hl:()=>[calls.WM4.e,U['T-11'].chip],run:[53.8,54.2,.12],
-  trace:['Machine 4 running 38% slower since 02:00','Same pattern came before 3 past breakdowns','Taking a machine offline needs a person → asking']},
- {t:'09:10 · A 4-day backlog appears on T-07',p:'Order T-07 will ship 4 days late.',
-  focus:at07(),area:'Hold area · T-07',hl:()=>[U['T-07'].chip],run:[57.12,57.26,.05],
-  trace:['T-07 forecast 23 Nov, promised 19 Nov','Penalty: ₹25 L a day × 4 = ₹1 Cr']},
- {t:'Why? Its parts are stuck at customs',p:'Found in an unread supplier email. Chasing a supplier needs no approval, so it does it: parts now arrive 16 Nov.',
-  focus:[-66,1.4],area:'Stores · bushing shelf',hl:()=>[calls.BUSH.e],run:[57.26,57.31,.025],
-  trace:['Supplier email: "held at Chennai customs, ETA 18th"','Rule: chasing a supplier → allowed alone','Backlog down from 4 days to 3']},
- {t:'It rules out a shortcut, then asks the plant head',p:'Skipping a test is never allowed. A night shift in the test lab is, but it costs money, so it asks. Answer bottom right.',wait:'t07',
-  focus:[-36,49],area:'High-voltage test lab',hl:()=>[calls.BLOCK.e],run:[57.37,57.40,.012],
-  trace:['Skip the final test: −1 day → ⛔ never allowed','Night shift: −2 days for ₹6 L, saves ₹75 L of penalty','Overtime above ₹2 L → needs a person']},
- {t:'Two days later · it spots oil running short',p:'It flagged it to purchasing early, so the order went in on time.',
-  focus:[70,24],area:'Oil storage',hl:()=>[calls.OIL.e,U['T-15'].chip],run:[98,106,1.5],
-  trace:['210 kL in stock, next fillings need 300 kL','Empty by 21 Nov → T-15 would be stuck','Purchase above ₹50 L → sent to purchasing']},
- {t:'Two weeks later · what changed',p:'Same plant, same problems. With the agent and your 2 approvals:',table:true,
+  focus:[23,17.5],area:'Drying ovens',hl:()=>[],run:[44,48,.8],card:'ovens',trace:[]},
+ {t:'Midnight · a 4-day backlog on T-07',p:'Its nightly re-forecast says order T-07 will ship 4 days late.',
+  focus:[23,17.5],area:'Drying oven 2 · T-07',hl:()=>[U['T-07'].chip],run:[48.0,48.26,.06],
+  trace:['T-07: forecast 23 Nov, promised 19 Nov','Penalty: ₹25 L a day × 4 = ₹1 Cr']},
+ {t:'…because Tank & Oil station 1 is running slow',p:'It checked the equipment logs. T-07 is next in this station\'s queue.',
+  focus:[-5,15.5],area:'Tank & Oil station 1',hl:()=>[calls.TK1.e],run:[48.26,48.26,.05],
+  trace:['Vacuum pump at 41% of normal speed since 22:40','Each tank fill now takes 2.5× longer']},
+ {t:'…so it fixes what it can, by itself',p:'It moves T-07 to the front of the queue and sends the spare pump from stores.',
+  focus:[-5,15.5],area:'Tank & Oil station 1',hl:()=>[calls.TK1.e],run:[48.26,48.31,.025],
+  trace:['Rule: queues and spare parts → allowed alone','Backlog down from 4 days to 3']},
+ {t:'…and asks to take the station offline to fit it',p:'4 hours tonight, and no order loses a day. Answer bottom right.',wait:'tk1',
+  focus:[-5,15.5],area:'Tank & Oil station 1',hl:()=>[calls.TK1.e],run:[48.31,48.33,.02],
+  trace:['Taking equipment offline → needs a person']},
+ {t:'It rules out a shortcut, then asks for a night shift',p:'Skipping a test is never allowed. A night shift in the test lab is, but it costs money, so it asks.',wait:'t07',
+  focus:[-36,49],area:'High-voltage test lab',hl:()=>[calls.BLOCK.e],run:[48.37,48.40,.012],
+  trace:['Skip the final test: −1 day → ⛔ never allowed','Night shift: −2 days for ₹6 L, saves ₹75 L','Overtime above ₹2 L → needs a person']},
+ {t:'Two weeks later · what changed',p:'Same plant, same night. With the agent and your 2 approvals:',table:true,
   focus:null,area:'',hl:()=>[],run:[110,H_END,30],trace:[]},
 ];
 /* Camera: out to the whole plant, hold, then in to the part. Wide, high angle, framed right of the card. */
@@ -1100,7 +1101,7 @@ function typeTrace(lines){const box=$('tourTrace');box.innerHTML='';const tok=++
     const d=document.createElement('div');d.className='tl cur';d.textContent=lines[i++];box.appendChild(d);setTimeout(add,reduce?0:650)};add()}
 let tourI=-1;
 function showStep(i){tourI=i;const s=TOUR[i];
-  if(i===0||!agentOn()){setMode('agent');DS={mail:'approve',oil:'approve'};PRESET=['mail','oil'];lastToast='';buildPins()}
+  if(i===0||!agentOn()){setMode('agent');DS={wm4:'approve',mail:'approve',oil:'approve'};PRESET=['wm4','mail','oil'];lastToast='';buildPins()}
   if(s.wait){delete DS[s.wait];lastToast=''}
   sel=null;drawer=null;$('ordchart').hidden=true;$('savings').hidden=true;document.querySelector('.app').classList.remove('showcard');$('autos').innerHTML='';traceTok++;$('tourTrace').innerHTML='';
   document.querySelector('.app').classList.add('touring');$('tour').hidden=false;
@@ -1118,13 +1119,12 @@ function showStep(i){tourI=i;const s=TOUR[i];
       $('ordchart').hidden=false;setTimeout(()=>{if(tourI===i)$('ordchart').hidden=true},4000)}
     if(s.card){sel={info:s.card};document.querySelector('.app').classList.add('showcard');refresh(true);
       setTimeout(()=>{if(tourI!==i)return;sel=null;document.querySelector('.app').classList.remove('showcard');refresh(true)},5000)}
-    if(s.table){const t07=DS.t07==='approve'?75:DS.t07?25:0,t15=DS.oil==='approve'?30:0,cost=DS.t07==='approve'?6:0,wm=DS.wm4==='approve';
-      const days=(DS.t07==='approve'?3:DS.t07?1:0)+(DS.oil==='approve'?2:0)+(wm?2:0),auto=AUTO.filter(a=>a.k==='auto').length;
+    if(s.table){const t07=DS.t07==='approve'?75:DS.t07?25:0,cost=DS.t07==='approve'?6:0,tk=DS.tk1==='approve',late=DS.t07==='approve'?1:DS.t07?2:4,auto=AUTO.filter(a=>a.k==='auto').length;
       $('savings').innerHTML=`<h4>What this run saved</h4><div class="g">
-        <div><b>${money(t07+t15-cost)}</b><small>net saved: penalties avoided minus ₹${cost} L overtime</small></div>
-        <div><b>${days} days</b><small>of order delays avoided (T-07, T-11, T-15)</small></div>
-        <div><b>${wm?44:0} h</b><small>machine downtime avoided on winding machine 4</small></div>
-        <div><b>20 min</b><small>from first warning to an approved plan (was: never)</small></div></div>
+        <div><b>${money(t07-cost)}</b><small>net saved on T-07: penalty avoided minus ₹${cost} L overtime</small></div>
+        <div><b>4 → ${late} day${late>1?'s':''}</b><small>T-07's delay after the agent stepped in</small></div>
+        <div><b>${tk?'4 h':'7 days'}</b><small>Tank & Oil station 1 ${tk?'back to full speed (was: slow for 7 days)':'left running slow'}</small></div>
+        <div><b>20 min</b><small>from midnight alert to an approved plan (was: never)</small></div></div>
         <p>${auto} actions done by the agent alone · 2 approvals asked · 1 unsafe shortcut blocked</p>`;$('savings').hidden=false}
     if(s.table)$('tourTrace').innerHTML='<div class="hd">Result</div>'+cmpTable();else typeTrace(s.trace);
     run(...s.run)})}

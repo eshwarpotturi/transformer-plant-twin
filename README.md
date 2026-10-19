@@ -12,7 +12,7 @@ Proof of concept for Straive's Innovation Team. **All data is synthetic.** Figur
 
 ## Guided demo
 
-Click **▶ Play demo** in the top bar for an 8-step walkthrough: the plant and its orders, live details for any part, a slow machine (approval 1), a 4-day backlog, its cause and the agent's own fix, a blocked shortcut and a night-shift request (approval 2), an oil shortage caught early, and what was saved. Exit at any time to explore freely.
+Click **▶ Play demo** in the top bar for an 8-step story: at midnight the agent finds a 4-day backlog on T-07, traces it to a slow Tank & Oil station, fixes what it may on its own, asks to take the station offline (approval 1), rules out skipping a test and asks for a night shift (approval 2), then shows what was saved. Exit at any time to explore freely.
 
 ## What it shows
 
