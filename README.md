@@ -4,7 +4,7 @@
 
 A 3D digital twin of a large power transformer factory, with an AI agent that reads plant messages, fixes small things on its own, refuses unsafe shortcuts, and asks a person before anything costly.
 
-Proof of concept for Straive's Innovation Team. **All data is synthetic.** Figures are typical industry values, not any client's.
+Proof of concept for the Innovation Team. **All data is synthetic.** Figures are typical industry values, not any client's.
 
 ## Open it
 
